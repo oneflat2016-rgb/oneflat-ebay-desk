@@ -1,0 +1,13 @@
+{
+  "name": "ONEFLAT eBay Listing Desk",
+  "short_name": "Listing Desk",
+  "description": "ONEFLAT社内向け eBay出品管理アプリ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef0e9",
+  "theme_color": "#8b3a5c",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
