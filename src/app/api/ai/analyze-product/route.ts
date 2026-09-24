@@ -27,21 +27,31 @@ const requestSchema = z.object({
   force: z.boolean().optional(),
 });
 
+/**
+ * ai_suggestions.suggested_value_json は NOT NULL 制約があるため、
+ * §34で意図的にnullを返す(=不明)フィールドはそもそも行を作らない
+ * (PostgRESTはJS の null を渡すとSQLのNULLとして送ってしまい、JSONの"null"リテラルには
+ * ならないため、NOT NULL制約に違反してinsertが失敗する)。
+ */
 function toSuggestionInputs(analysis: ProductAnalysis) {
-  return [
-    { fieldName: 'brand', suggestedValue: analysis.brand.value, confidence: analysis.brand.confidence, reason: analysis.brand.evidence },
-    { fieldName: 'model', suggestedValue: analysis.model.value, confidence: analysis.model.confidence, reason: analysis.model.evidence },
-    { fieldName: 'mpn', suggestedValue: analysis.mpn.value, confidence: analysis.mpn.confidence, reason: analysis.mpn.evidence },
-    {
-      fieldName: 'productType',
-      suggestedValue: analysis.productType.value,
-      confidence: analysis.productType.confidence,
-      reason: analysis.productType.evidence,
-    },
-    { fieldName: 'visibleText', suggestedValue: analysis.visibleText, confidence: 1 },
-    { fieldName: 'includedItems', suggestedValue: analysis.includedItems, confidence: 1 },
-    { fieldName: 'unknownFields', suggestedValue: analysis.unknownFields, confidence: 1 },
+  const rows: { fieldName: string; suggestedValue: unknown; confidence: number; reason?: string }[] = [];
+
+  const guesses: [string, ProductAnalysis['brand']][] = [
+    ['brand', analysis.brand],
+    ['model', analysis.model],
+    ['mpn', analysis.mpn],
+    ['productType', analysis.productType],
   ];
+  for (const [fieldName, guess] of guesses) {
+    if (guess.value === null) continue; // §34: 不明な項目は保存しない
+    rows.push({ fieldName, suggestedValue: guess.value, confidence: guess.confidence, reason: guess.evidence });
+  }
+
+  rows.push({ fieldName: 'visibleText', suggestedValue: analysis.visibleText, confidence: 1 });
+  rows.push({ fieldName: 'includedItems', suggestedValue: analysis.includedItems, confidence: 1 });
+  rows.push({ fieldName: 'unknownFields', suggestedValue: analysis.unknownFields, confidence: 1 });
+
+  return rows;
 }
 
 export async function POST(req: Request) {

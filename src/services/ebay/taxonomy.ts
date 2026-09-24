@@ -1,16 +1,102 @@
-import type { EbayCategorySuggestion } from '@/types/ebay';
+import type { EbayCategory, EbayCategorySuggestion } from '@/types/ebay';
+import { getEbayApiBaseUrl, getEbayAppAccessToken } from './auth';
+import { upsertCategoryCache } from '@/repositories/ebayCategoryCache';
 
 /**
- * TODO(§37-38): 実装対象。eBay Taxonomy API。
- * - getDefaultCategoryTreeId(marketplaceId)
- * - getCategorySuggestions(categoryTreeId, q)
+ * §37-38(§110 step6): eBay Taxonomy API。
  * GET /api/ebay/categories/suggest?q= のバックエンド実装本体。
  * 候補は最大5件、eBayが返す関連性順をそのまま使用する(§37)。
- * !!! カテゴリーをアプリへハードコードしないこと(§117-2) !!!
+ * !!! カテゴリーをアプリへハードコードしないこと(§117-2) !!! — 値はすべてeBayのレスポンスに由来する。
  */
-export async function suggestCategories(_params: {
+
+const MAX_SUGGESTIONS = 5;
+
+// マーケットプレイスごとのdefault category tree idは長期間変わらないため、モジュール内でキャッシュする。
+const categoryTreeIdCache = new Map<string, string>();
+
+async function ebayFetch(path: string, marketplaceId: string): Promise<Response> {
+  const token = await getEbayAppAccessToken();
+  return fetch(`${getEbayApiBaseUrl()}${path}`, {
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      'X-EBAY-C-MARKETPLACE-ID': marketplaceId,
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+export async function getDefaultCategoryTreeId(marketplaceId: string): Promise<string> {
+  const cached = categoryTreeIdCache.get(marketplaceId);
+  if (cached) return cached;
+
+  const res = await ebayFetch(
+    `/commerce/taxonomy/v1/category_tree/get_default_category_tree_id?marketplace_id=${encodeURIComponent(
+      marketplaceId,
+    )}`,
+    marketplaceId,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay Taxonomy API (get_default_category_tree_id) failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as { categoryTreeId: string };
+  categoryTreeIdCache.set(marketplaceId, json.categoryTreeId);
+  return json.categoryTreeId;
+}
+
+interface EbayCategorySuggestionResponseItem {
+  category: { categoryId: string; categoryName: string };
+  categoryTreeNodeAncestors?: { categoryId: string }[];
+  categoryTreeNodeLevel?: number;
+  relevancy?: string;
+}
+
+export async function suggestCategories(params: {
   marketplaceId: string;
   query: string;
 }): Promise<EbayCategorySuggestion[]> {
-  throw new Error('suggestCategories is not implemented yet (§37-38)');
+  const { marketplaceId, query } = params;
+  if (!query.trim()) return [];
+
+  const categoryTreeId = await getDefaultCategoryTreeId(marketplaceId);
+
+  const res = await ebayFetch(
+    `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(
+      categoryTreeId,
+    )}/get_category_suggestions?q=${encodeURIComponent(query)}`,
+    marketplaceId,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay Taxonomy API (get_category_suggestions) failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as { categorySuggestions?: EbayCategorySuggestionResponseItem[] };
+  const items = (json.categorySuggestions ?? []).slice(0, MAX_SUGGESTIONS);
+
+  const suggestions: EbayCategorySuggestion[] = items.map((item, index) => {
+    const ancestors = item.categoryTreeNodeAncestors ?? [];
+    const lastAncestor = ancestors.length > 0 ? ancestors[ancestors.length - 1] : undefined;
+    const parentCategoryId = lastAncestor?.categoryId ?? null;
+    const category: EbayCategory = {
+      categoryTreeId,
+      categoryId: item.category.categoryId,
+      categoryName: item.category.categoryName,
+      parentCategoryId,
+      leaf: true, // Taxonomy APIのcategory suggestionsは常にleafカテゴリーのみを返す
+    };
+    return {
+      category,
+      // eBayは"relevancy"を返さない場合があるため、返却順(=eBay側の関連性順, §37)を保持する
+      relevancy: item.relevancy ? Number(item.relevancy) : items.length - index,
+    };
+  });
+
+  // キャッシュへの書き込みは失敗してもレスポンスをブロックしない(ベストエフォート)
+  upsertCategoryCache(
+    marketplaceId,
+    categoryTreeId,
+    suggestions.map((s) => s.category),
+  ).catch(() => undefined);
+
+  return suggestions;
 }

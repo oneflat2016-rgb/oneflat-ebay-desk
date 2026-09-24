@@ -62,6 +62,15 @@ export interface ListingFormState {
   category: string;
   categoryPreset: string;
 
+  /**
+   * §37-38(§110 step6): eBay Taxonomy APIから選択した実カテゴリー。
+   * 未選択の間はnull(旧`category`自由入力欄との併用期間)。
+   * §117-2: カテゴリーをアプリへハードコードしないため、値は必ずeBay APIの応答から来る。
+   */
+  categoryTreeId: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+
   condition: ConditionValue;
 
   about: BilingualText;

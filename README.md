@@ -1,7 +1,7 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP5)
+# ONEFLAT eBay Listing Desk (Phase1-STEP6)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)** が完了している。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -41,6 +41,13 @@ npm run dev
   - `ai_runs` / `ai_suggestions` テーブルに解析結果を保存し、同一商品・同一写真構成(input_hash一致)であれば再度Claudeを呼ばずに保存済み結果を再利用する(§85: 再実行防止)。
   - `ANTHROPIC_API_KEY` 未設定時は501を返し、UIは「手入力をお願いします」と案内する(§100)。
   - 画像・メモ中の文言はあくまで解析対象のデータとして扱い、AIへの指示として解釈させない(§104)。
+- **eBayカテゴリー候補(§110 step6, §37-38)**: `/listings/new` の「1.5. eBayカテゴリー候補」から、英語キーワード(型番・商品種別など)でeBayの実カテゴリーを検索できる。
+  - eBay Taxonomy API(Application Access Token, Client Credentials Grant)を使用。特定の出品者アカウントの連携(§9のOAuth, step9)は不要で、`EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`だけで動作する。
+  - ブランドが特定できない商品でも、商品種別(AI解析結果の`productType`など)で検索すればカテゴリーを絞り込める。
+  - 候補は最大5件、eBayが返す順序をそのまま表示する(§37: 順序を並べ替えない)。
+  - 選択した候補は `categoryTreeId` / `categoryId` / `categoryName` として `listing_drafts` に保存される(§117-2: カテゴリーはハードコードせず、必ずeBayの応答に由来する値のみを保存)。
+  - 旧来の自由入力欄(カテゴリー名を手打ちする欄)は引き続き残っており、次のstep7(動的Item Specifics)で置き換え・整理する予定。
+  - `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` 未設定時は501を返し、UIは自由入力欄への手入力継続を促す(§100)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -76,7 +83,6 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-6. Taxonomy API(カテゴリー候補)
 7. 動的Item Specifics(Metadata API) — ここで `GENRE_FIELDS` / `CATEGORY_PRESETS` を削除
 8. Condition取得(Metadata API)
 9. eBay OAuth

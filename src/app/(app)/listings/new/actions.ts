@@ -78,7 +78,9 @@ export async function saveListingDraft(
     }
 
     const draftPatch = {
-      categoryName: state.category || null,
+      categoryTreeId: state.categoryTreeId,
+      categoryId: state.categoryId,
+      categoryName: state.categoryName ?? (state.category || null),
       conditionEnum: state.condition || null,
       title: state.title || null,
       updatedBy: profile.id,

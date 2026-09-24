@@ -13,6 +13,8 @@ export interface ListingDraftRecord {
   id: string;
   productId: string;
   marketplaceId: string;
+  categoryTreeId: string | null;
+  categoryId: string | null;
   categoryName: string | null;
   conditionEnum: string | null;
   title: string | null;
@@ -25,6 +27,8 @@ export interface ListingDraftRecord {
 }
 
 export interface ListingDraftPatch {
+  categoryTreeId?: string | null;
+  categoryId?: string | null;
   categoryName?: string | null;
   conditionEnum?: string | null;
   title?: string | null;
@@ -36,6 +40,8 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
     id: row.id as string,
     productId: row.product_id as string,
     marketplaceId: row.marketplace_id as string,
+    categoryTreeId: (row.category_tree_id as string | null) ?? null,
+    categoryId: (row.category_id as string | null) ?? null,
     categoryName: (row.category_name as string | null) ?? null,
     conditionEnum: (row.condition_enum as string | null) ?? null,
     title: (row.title as string | null) ?? null,
@@ -50,6 +56,8 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
 
 function patchToRow(patch: ListingDraftPatch): Record<string, unknown> {
   const row: Record<string, unknown> = {};
+  if ('categoryTreeId' in patch) row.category_tree_id = patch.categoryTreeId;
+  if ('categoryId' in patch) row.category_id = patch.categoryId;
   if ('categoryName' in patch) row.category_name = patch.categoryName;
   if ('conditionEnum' in patch) row.condition_enum = patch.conditionEnum;
   if ('title' in patch) row.title = patch.title;

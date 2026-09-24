@@ -7,6 +7,7 @@ import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
 import { ImagesSection } from './ImagesSection';
 import { AiAnalysisSection } from './AiAnalysisSection';
+import { CategorySuggestSection } from './CategorySuggestSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
@@ -139,6 +140,15 @@ export function ListingForm({
           onCategoryChange={(category) => patch({ category })}
           onCategoryPresetChange={(categoryPreset) =>
             patch({ categoryPreset, category: categoryPreset })
+          }
+        />
+
+        <CategorySuggestSection
+          categoryId={state.categoryId}
+          categoryName={state.categoryName}
+          defaultQuery={[state.model, state.brand].filter(Boolean).join(' ')}
+          onSelect={({ categoryTreeId, categoryId, categoryName }) =>
+            patch({ categoryTreeId, categoryId, categoryName, category: categoryName })
           }
         />
 
