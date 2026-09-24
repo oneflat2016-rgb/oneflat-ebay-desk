@@ -3,7 +3,9 @@
 import { getCurrentProfile } from '@/lib/auth/getCurrentProfile';
 import * as productsRepo from '@/repositories/products';
 import * as listingsRepo from '@/repositories/listings';
+import * as productImagesRepo from '@/repositories/productImages';
 import type { ListingFormState } from '@/types/listing';
+import type { ProductImageWithUrl } from '@/repositories/productImages';
 
 /**
  * §110 step3: products / listing_drafts のDB保存。
@@ -114,6 +116,67 @@ export async function saveListingDraft(
     };
   } catch (err) {
     console.error('[saveListingDraft] failed', err instanceof Error ? err.message : err);
+    return { ok: false, error: 'unknown' };
+  }
+}
+
+/**
+ * §110 step4: スマホ/PCから撮影・選択した写真をSupabase Storageへアップロードする。
+ * §102: アップロード前にファイル種別・サイズを必ず検証する(未検証の入力を信用しない)。
+ */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
+
+export interface UploadImageResult {
+  ok: boolean;
+  image?: ProductImageWithUrl;
+  error?: 'not_authenticated' | 'invalid_file' | 'invalid_type' | 'too_large' | 'unknown';
+}
+
+export async function uploadProductImage(
+  productId: string,
+  formData: FormData,
+): Promise<UploadImageResult> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { ok: false, error: 'not_authenticated' };
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) return { ok: false, error: 'invalid_file' };
+  if (!file.type.startsWith('image/')) return { ok: false, error: 'invalid_type' };
+  if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: 'too_large' };
+
+  try {
+    const record = await productImagesRepo.uploadImage({
+      organizationId: profile.organizationId,
+      productId,
+      uploadedBy: profile.id,
+      file,
+    });
+    const [withUrl] = await productImagesRepo.listImagesWithUrls(productId).then((rows) =>
+      rows.filter((r) => r.id === record.id),
+    );
+    return { ok: true, image: withUrl };
+  } catch (err) {
+    console.error('[uploadProductImage] failed', err instanceof Error ? err.message : err);
+    return { ok: false, error: 'unknown' };
+  }
+}
+
+export async function listProductImages(productId: string): Promise<ProductImageWithUrl[]> {
+  const profile = await getCurrentProfile();
+  if (!profile) return [];
+  return productImagesRepo.listImagesWithUrls(productId);
+}
+
+export async function deleteProductImage(
+  imageId: string,
+): Promise<{ ok: boolean; error?: 'not_authenticated' | 'unknown' }> {
+  const profile = await getCurrentProfile();
+  if (!profile) return { ok: false, error: 'not_authenticated' };
+  try {
+    await productImagesRepo.deleteImage(imageId);
+    return { ok: true };
+  } catch (err) {
+    console.error('[deleteProductImage] failed', err instanceof Error ? err.message : err);
     return { ok: false, error: 'unknown' };
   }
 }

@@ -5,6 +5,7 @@ import type { ConditionValue, GenreKey, ListingFormState } from '@/types/listing
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
+import { ImagesSection } from './ImagesSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
@@ -100,6 +101,8 @@ export function ListingForm({
   return (
     <div className="layout">
       <div className="form-col">
+        <ImagesSection productId={identity.productId} />
+
         <ColorTemplateSection
           colors={state.templateColors}
           onChange={(templateColors) => patch({ templateColors })}

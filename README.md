@@ -1,7 +1,7 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP3)
+# ONEFLAT eBay Listing Desk (Phase1-STEP4)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)** が完了している。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -26,8 +26,14 @@ npm run dev
   - 初回保存時にSKU(`OF-YYMMDD-連番`, §14)を自動採番し、`products` と `listing_drafts` を新規作成する。2回目以降は同じレコードをUPDATEする。
   - `version` 列による楽観的排他制御(§81)を実装済み。保存時にversionが一致しない(=他の人が先に更新した)場合はエラーメッセージを表示し、上書きしない(§102の無条件上書き禁止)。
   - Item Specifics(ジャンル固定の項目)は `listing_aspect_values` テーブルに保存される(`source: 'human'` 固定)。
-  - 画像・チェックリスト・配色テンプレートはまだDB化していない(チェックリスト/配色は§110 step4、画像はstep5で対応予定)。
+  - チェックリスト・配色テンプレートはまだDB化していない(§110 step未定、クライアント内stateのまま)。
   - `POST /api/ai/translate` 以外は認証必須(未ログインならSave自体がエラーを返す)。
+- **写真アップロード(§110 step4)**: `/listings/new` の「0. 商品写真」欄から、スマホ/PCで撮影・選択した写真をSupabase Storage(`product-images`バケット、非公開)にアップロードできる。
+  - 先に「保存」を1回押して商品(product)を作成しないと写真は追加できない(`product_images`が`products`に外部キーで紐づくため)。
+  - アップロード前にファイル種別(画像のみ)・サイズ(8MB上限)をServer Action側で検証する(§102)。
+  - バケットは非公開のため、表示のたびにsigned URL(有効期限1時間)を発行して表示している。
+  - 削除ボタンで、Storage本体とDB行(`product_images`)の両方を削除する。
+  - `supabase/storage.sql` を**追加で**実行する必要がある(バケット作成 + 組織単位のRLSポリシー)。`schema.sql`実行済みのプロジェクトでもこのファイルは未実行のはずなので、SQL Editorで実行してください。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -37,7 +43,7 @@ npm run dev
 - 管理画面からのユーザー招待・Role割り当て(§8) — 未実装。`profiles` テーブルへのレコード作成は現状手動(SupabaseダッシュボードでのSQL実行を想定)
 - チェックリスト・配色テンプレートのDB保存(§89-90) — 未実装。クライアント内stateのみ(保存ボタンを押しても消える)
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
-- カメラ撮影・画像アップロード・Supabase Storage — 未実装
+- 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ)
 - eBay Taxonomy/Metadata/Account/Inventory/Media API連携 — `src/services/ebay/*.ts` にシグネチャのみ用意(呼ぶと例外を投げる)
 - Claude APIによる商品解析・タイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳のみ実装済み)
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
@@ -63,7 +69,6 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-4. スマホCamera + Storage(images未対応。product_imagesテーブルは作成済み)
 5. Claude APIのBackend接続(商品解析)
 6. Taxonomy API(カテゴリー候補)
 7. 動的Item Specifics(Metadata API) — ここで `GENRE_FIELDS` / `CATEGORY_PRESETS` を削除
