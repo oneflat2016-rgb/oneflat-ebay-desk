@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 import type { ConditionValue, GenreKey, ListingFormState } from '@/types/listing';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
+import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
@@ -13,17 +14,37 @@ import { ChecklistSection } from './ChecklistSection';
 import { ColorTemplateSection } from './ColorTemplateSection';
 import { PreviewPanel } from './PreviewPanel';
 
+type SaveStatus =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; at: string }
+  | { kind: 'conflict'; target: 'product' | 'draft' }
+  | { kind: 'error'; message: string };
+
 /**
  * ebay-listing-desk.html のIIFE状態管理を、React state(useState)へ移植した
- * トップレベルのフォームコンテナ(Phase1-STEP1)。
+ * トップレベルのフォームコンテナ(Phase1-STEP1〜STEP3)。
  *
- * TODO(§80-82): 入力停止後1〜2秒のdebounceでlisting_draftsへ自動保存し、
- * version列による楽観的排他制御を行う(現状はクライアント内state保持のみ)。
+ * §110 step3: 「保存」ボタンでlisting_drafts/productsへDB保存する(手動保存)。
+ * TODO(§80): 入力停止後1〜2秒のdebounceによる自動保存はまだ未実装。
+ * §81: version列による楽観的排他制御は実装済み(他の人が先に保存していた場合、
+ * conflictとして検知しUIに警告を出す)。
  * TODO(§30-31): ホーム画面 + STEP1(写真)/STEP2(出品情報)/STEP3(最終確認)の
  * ウィザードへ分割する。現状は単一フォーム(旧UIのまま)。
  */
-export function ListingForm({ initialState }: { initialState: ListingFormState }) {
+export function ListingForm({
+  initialState,
+  initialIdentity,
+}: {
+  initialState: ListingFormState;
+  initialIdentity?: SaveListingIdentity;
+}) {
   const [state, setState] = useState<ListingFormState>(initialState);
+  const [identity, setIdentity] = useState<SaveListingIdentity>(
+    initialIdentity ?? { productId: null, productVersion: null, draftId: null, draftVersion: null },
+  );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' });
+  const [isSaving, startSaveTransition] = useTransition();
 
   const patch = useCallback((partial: Partial<ListingFormState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -53,6 +74,27 @@ export function ListingForm({ initialState }: { initialState: ListingFormState }
 
   function handleClear() {
     setState(createEmptyListingFormState());
+    setIdentity({ productId: null, productVersion: null, draftId: null, draftVersion: null });
+    setSaveStatus({ kind: 'idle' });
+  }
+
+  function handleSave() {
+    setSaveStatus({ kind: 'saving' });
+    startSaveTransition(async () => {
+      const result = await saveListingDraft(identity, state);
+      if (!result.ok) {
+        if (result.conflict) {
+          setSaveStatus({ kind: 'conflict', target: result.conflict });
+        } else if (result.error === 'not_authenticated') {
+          setSaveStatus({ kind: 'error', message: 'ログインが必要です。ページを再読み込みしてください。' });
+        } else {
+          setSaveStatus({ kind: 'error', message: '保存に失敗しました。もう一度お試しください。' });
+        }
+        return;
+      }
+      if (result.identity) setIdentity(result.identity);
+      setSaveStatus({ kind: 'saved', at: result.savedAt ?? new Date().toISOString() });
+    });
   }
 
   return (
@@ -150,14 +192,50 @@ export function ListingForm({ initialState }: { initialState: ListingFormState }
 
         <ChecklistSection checklist={state.checklist} onToggle={handleChecklistToggle} />
 
-        <div className="actions-row">
+        <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? '保存中…' : '保存'}
+          </button>
           <button type="button" className="btn" onClick={handleClear}>
             クリアして次の商品へ
           </button>
+          <SaveStatusLabel status={saveStatus} />
         </div>
       </div>
 
       <PreviewPanel state={state} />
     </div>
+  );
+}
+
+/**
+ * §81: 楽観的排他制御のconflict時は、上書き保存させず
+ * 「他の人が更新しました」と明示する(§102: 無条件の上書き禁止)。
+ */
+function SaveStatusLabel({ status }: { status: SaveStatus }) {
+  if (status.kind === 'idle') {
+    return <span className="hint">まだ保存されていません</span>;
+  }
+  if (status.kind === 'saving') {
+    return <span className="hint">保存しています…</span>;
+  }
+  if (status.kind === 'saved') {
+    const time = new Date(status.at).toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return <span className="hint" style={{ color: 'var(--accent)' }}>{time} に保存しました</span>;
+  }
+  if (status.kind === 'conflict') {
+    return (
+      <span className="hint" style={{ color: '#c0392b' }}>
+        他の人がこの{status.target === 'product' ? '商品' : '出品情報'}を先に更新しました。ページを再読み込みしてから、もう一度編集してください。
+      </span>
+    );
+  }
+  return (
+    <span className="hint" style={{ color: '#c0392b' }}>
+      {status.message}
+    </span>
   );
 }

@@ -1,7 +1,9 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP2)
+# ONEFLAT eBay Listing Desk (Phase1-STEP3)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番「現在のHTMLをNext.jsコンポーネントへ分割」** と **2番「Supabase Auth」** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)** が完了している。
+
+本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
 ## セットアップ
 
@@ -20,13 +22,21 @@ npm run dev
 - **Supabase Authによるログイン(§7-8)**: `/login` (メール+パスワード、Server Action `signInWithPassword`) → `middleware.ts` がセッションをリフレッシュしつつ未ログインを `/login` にリダイレクト → ログイン後は `(app)` レイアウトのヘッダーに `profiles` テーブルから取得した表示名とRole(ADMIN/LISTER/CREATOR)を表示、ADMINのみ「管理」リンクが出る、ログアウトボタンあり。`/auth/callback` はマジックリンク/OAuth用に用意済み(現状未使用)。
   - Supabase環境変数が未設定の間はこの認証機構全体が自動的にスキップされる(`middleware.ts` と `(app)/layout.tsx` の両方で判定)ため、Supabaseプロジェクトが無い状態でもこれまで通り開発を続けられる。
   - `profiles` テーブルにレコードが無いユーザー(=ADMINがまだ招待していない)は、ログインはできるがヘッダーに「アカウントが未登録です」と表示される(§8のRole管理は未実装、次フェーズ以降で管理画面から招待できるようにする予定)。
+- **products / listing_drafts のDB保存(§110 step3)**: `/listings/new` の「保存」ボタンを押すと、`repositories/products.ts` / `repositories/listings.ts` 経由でSupabaseに実際に保存される。
+  - 初回保存時にSKU(`OF-YYMMDD-連番`, §14)を自動採番し、`products` と `listing_drafts` を新規作成する。2回目以降は同じレコードをUPDATEする。
+  - `version` 列による楽観的排他制御(§81)を実装済み。保存時にversionが一致しない(=他の人が先に更新した)場合はエラーメッセージを表示し、上書きしない(§102の無条件上書き禁止)。
+  - Item Specifics(ジャンル固定の項目)は `listing_aspect_values` テーブルに保存される(`source: 'human'` 固定)。
+  - 画像・チェックリスト・配色テンプレートはまだDB化していない(チェックリスト/配色は§110 step4、画像はstep5で対応予定)。
+  - `POST /api/ai/translate` 以外は認証必須(未ログインならSave自体がエラーを返す)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
 このスキャフォールドは「型・ディレクトリ構成・サービス層の輪郭」を先に作り、実データ連携は指示書§110の順序どおり後続フェーズで実装する方針です。
 
-- 商品・下書きのDB保存(自動保存・楽観的排他制御) — 未実装。`supabase/schema.sql` にテーブル定義のみ作成済み
+- debounceによる自動保存(§80) — 未実装。現状は「保存」ボタンによる手動保存のみ
 - 管理画面からのユーザー招待・Role割り当て(§8) — 未実装。`profiles` テーブルへのレコード作成は現状手動(SupabaseダッシュボードでのSQL実行を想定)
+- チェックリスト・配色テンプレートのDB保存(§89-90) — 未実装。クライアント内stateのみ(保存ボタンを押しても消える)
+- 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
 - カメラ撮影・画像アップロード・Supabase Storage — 未実装
 - eBay Taxonomy/Metadata/Account/Inventory/Media API連携 — `src/services/ebay/*.ts` にシグネチャのみ用意(呼ぶと例外を投げる)
 - Claude APIによる商品解析・タイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳のみ実装済み)
@@ -53,8 +63,7 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-3. products / drafts / images のDB接続(現状のReact state → DB保存への切り替え)
-4. スマホCamera + Storage
+4. スマホCamera + Storage(images未対応。product_imagesテーブルは作成済み)
 5. Claude APIのBackend接続(商品解析)
 6. Taxonomy API(カテゴリー候補)
 7. 動的Item Specifics(Metadata API) — ここで `GENRE_FIELDS` / `CATEGORY_PRESETS` を削除
