@@ -18,7 +18,12 @@ export function getAnthropicClient(): Anthropic {
   return cachedClient;
 }
 
-/** 管理設定 or 環境変数でモデル名を変更可能にする(§4: コードへ直接固定しない) */
+/**
+ * 管理設定 or 環境変数でモデル名を変更可能にする(§4: コードへ直接固定しない)。
+ * ANTHROPIC_MODELが未設定、または空文字("")の場合は既定値にフォールバックする
+ * (Vercelの環境変数UIで空欄のまま保存されるケースがあるため、空文字も未設定扱いにする)。
+ */
 export function getAnthropicModel(): string {
-  return process.env.ANTHROPIC_MODEL ?? 'claude-3-5-sonnet-latest';
+  const configured = process.env.ANTHROPIC_MODEL?.trim();
+  return configured ? configured : 'claude-sonnet-5';
 }
