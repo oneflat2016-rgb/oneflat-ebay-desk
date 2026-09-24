@@ -106,6 +106,53 @@ export async function listImagesWithUrls(productId: string): Promise<ProductImag
   return results;
 }
 
+const EXT_TO_MEDIA_TYPE: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
+export interface ImageForAnalysis {
+  base64: string;
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+}
+
+/**
+ * §34-36: AI解析(analyzeProduct)向けに、商品写真をStorageから直接ダウンロードし
+ * base64化する。signed URLを経由せず supabase.storage.download() を使うことで、
+ * 一時URLの発行・HTTP往復を省く。
+ * §102: 未対応の拡張子(=想定外バイナリ)はスキップし、呼び出し元に空配列を返しうる。
+ */
+export async function getImagesForAnalysis(
+  productId: string,
+  maxImages = 6,
+): Promise<ImageForAnalysis[]> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('product_images')
+    .select('original_path')
+    .eq('product_id', productId)
+    .order('sort_order', { ascending: true })
+    .limit(maxImages);
+  if (error) throw error;
+
+  const results: ImageForAnalysis[] = [];
+  for (const row of data ?? []) {
+    const path = row.original_path as string;
+    const ext = path.split('.').pop()?.toLowerCase() ?? '';
+    const mediaType = EXT_TO_MEDIA_TYPE[ext];
+    if (!mediaType) continue; // 未対応拡張子はスキップ
+
+    const { data: blob, error: dlError } = await supabase.storage.from(BUCKET).download(path);
+    if (dlError) throw dlError;
+    const bytes = Buffer.from(await blob.arrayBuffer());
+    results.push({ base64: bytes.toString('base64'), mediaType: mediaType as ImageForAnalysis['mediaType'] });
+  }
+  return results;
+}
+
 export async function deleteImage(imageId: string): Promise<void> {
   const supabase = getSupabaseServerClient();
   const { data: row, error: fetchError } = await supabase

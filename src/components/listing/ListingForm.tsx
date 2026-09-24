@@ -6,6 +6,7 @@ import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
 import { ImagesSection } from './ImagesSection';
+import { AiAnalysisSection } from './AiAnalysisSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
@@ -102,6 +103,18 @@ export function ListingForm({
     <div className="layout">
       <div className="form-col">
         <ImagesSection productId={identity.productId} />
+
+        <AiAnalysisSection
+          productId={identity.productId}
+          onApplyBrand={(value) => patch({ brand: value })}
+          onApplyModel={(value) => patch({ model: value })}
+          onApplyKeywords={(value) =>
+            setState((prev) => ({
+              ...prev,
+              keywords: prev.keywords ? `${prev.keywords} ${value}` : value,
+            }))
+          }
+        />
 
         <ColorTemplateSection
           colors={state.templateColors}

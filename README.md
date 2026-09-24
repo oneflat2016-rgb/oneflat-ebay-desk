@@ -1,7 +1,7 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP4)
+# ONEFLAT eBay Listing Desk (Phase1-STEP5)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)** が完了している。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -34,6 +34,13 @@ npm run dev
   - バケットは非公開のため、表示のたびにsigned URL(有効期限1時間)を発行して表示している。
   - 削除ボタンで、Storage本体とDB行(`product_images`)の両方を削除する。
   - `supabase/storage.sql` を**追加で**実行する必要がある(バケット作成 + 組織単位のRLSポリシー)。`schema.sql`実行済みのプロジェクトでもこのファイルは未実行のはずなので、SQL Editorで実行してください。
+- **AIによる商品解析(§110 step5, §34-36)**: `/listings/new` の「0.5. AIによる商品解析」から、アップロード済みの商品写真をClaude API(`POST /api/ai/analyze-product`)に送り、ブランド・型番・MPN・商品種別を推定できる。
+  - 先に商品を保存し、写真を1枚以上アップロードしておく必要がある(最大6枚まで解析対象)。
+  - 各項目は「不明」の場合`null`のまま返す設計(§34: AIに存在しない情報を作らせない)。確信度(confidence)も一緒に表示する。
+  - 結果は自動反映せず、フィールドごとに「適用」ボタンを押した分だけフォームに反映される(§102: 無条件の自動上書き禁止)。
+  - `ai_runs` / `ai_suggestions` テーブルに解析結果を保存し、同一商品・同一写真構成(input_hash一致)であれば再度Claudeを呼ばずに保存済み結果を再利用する(§85: 再実行防止)。
+  - `ANTHROPIC_API_KEY` 未設定時は501を返し、UIは「手入力をお願いします」と案内する(§100)。
+  - 画像・メモ中の文言はあくまで解析対象のデータとして扱い、AIへの指示として解釈させない(§104)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -45,7 +52,7 @@ npm run dev
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
 - 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ)
 - eBay Taxonomy/Metadata/Account/Inventory/Media API連携 — `src/services/ebay/*.ts` にシグネチャのみ用意(呼ぶと例外を投げる)
-- Claude APIによる商品解析・タイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳のみ実装済み)
+- Claude APIによるタイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析は実装済み)
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
 
@@ -69,7 +76,6 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-5. Claude APIのBackend接続(商品解析)
 6. Taxonomy API(カテゴリー候補)
 7. 動的Item Specifics(Metadata API) — ここで `GENRE_FIELDS` / `CATEGORY_PRESETS` を削除
 8. Condition取得(Metadata API)
