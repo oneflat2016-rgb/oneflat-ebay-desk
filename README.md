@@ -90,7 +90,7 @@ npm run dev
   - 選択結果は `listing_drafts.fulfillment_policy_id` / `payment_policy_id` / `return_policy_id` / `merchant_location_key` として保存される(これらの列は元々`schema.sql`に用意済みだったため、追加のDBマイグレーションは不要)。
   - eBayアカウント未連携(§9未実施)の場合は、`/settings`で連携するよう案内が表示される。
   - 実際にこれらのID(Policy ID / Location Key)を使ってInventory Item・Offerを作成し出品する処理(Publish本体)はstep11で実装した(下記)。
-- **価格・数量入力 + eBayへのPublish(§110 step11, §66-71, §76)**: `/listings/new` に新設した「価格・数量(eBay Offerに必須)」欄で価格・通貨・数量を入力し、一番下の「eBayへ出品する(Publish)」ボタンで実際にeBay Sandbox(または本番)へ出品できる。
+- **価格・数量入力 + eBayへのPublish(§110 step11, §66-71, §76)**: `/listings/new` に新設した「価格・数量(eBay Offerに必須)」欄で価格・通貨・数量を入力し、一番下の「eBayへ出品する(Publish)」ボタンで実際にeBay Sandbox(または本番)へ出品できる。**2026-09-25、eBay Sandboxで実機Publishが成功したことを確認済み(Listing ID: 110590790136)。本番(Production)環境ではまだテストしていない**(本番へ切り替える場合は、eBay Developer PortalのProduction用キーを取得し、`EBAY_ENV` / `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` / `EBAY_REDIRECT_URI` をVercelで設定し直したうえで、`/settings`から実際のONEFLAT eBayアカウントで再連携する必要がある)。
   - `price` / `currency` / `quantity` を `ListingFormState` / `listing_drafts` に追加した(DB列自体は元々`schema.sql`に用意済みだったため追加マイグレーション不要)。
   - Publishボタンを押すと、まず現在の入力内容を保存(既存の「保存」と同じ処理)→ 必須項目(タイトル・カテゴリー・Condition・配送/支払い/返品ポリシー・保管場所・価格・数量・商品写真1枚以上)のバリデーション → `listing_drafts.status`を`PUBLISHING`へロック(§70: サーバー側で二重出品を防止、同じ下書きへ同時に2回Publishを押しても片方は拒否される)→ eBay Sell Inventory API(`PUT /inventory_item/{sku}` → `POST /offer` → `POST /offer/{offerId}/publish/`)を順に呼ぶ → 成功したら`listings`テーブル(公開後の正本)へ`ebay_listing_id`/`ebay_offer_id`を保存し、`listing_drafts.status`を`PUBLISHED`に変更 → `audit_logs`へ記録、という順序で処理する。
   - 商品写真は、eBayの`imageUrls`に自社アプリの短いリダイレクトURL(`/api/ebay-image/{画像ID}`)を渡し、実際のアクセス時にSupabase Storage(非公開バケット)の署名付きURLへ302リダイレクトする方式にした(`src/app/api/ebay-image/[imageId]/route.ts`)。署名付きURLをそのまま渡すとeBay側のPictureURL文字数制限(1件500文字以内・合計3975文字以内、errorId 25015)を超えてしまうため。eBayのレガシーTrading APIと異なり、Sell Inventory APIは事前にMedia API(EPS)へアップロードしておく必要がないため(`services/ebay/media.ts`のEPSスタブは現状未使用のまま)。
@@ -138,7 +138,7 @@ npm run dev
 
 12番以降は指示書側で次の番号がどの機能か確定次第、順に着手する(Phase2の注文/利益管理機能、または出品済みListingの管理画面などが候補)。
 
-(11番のPublishまで完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
+(11番のPublishまで完了。Sandboxでの実機Publish成功は確認済みだが、本番(Production)ではまだ未検証。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 
