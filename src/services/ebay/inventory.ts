@@ -88,7 +88,11 @@ export async function createOrReplaceInventoryItem(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        // §76: eBay Sell Inventory APIはContent-Language(送信するproduct情報の言語)に加えて
+        // Accept-Language(レスポンスの言語)も必須。片方だけだと errorId 25709
+        // ("Invalid value for header Accept-Language")になる(2026-09-25 Sandbox実機確認済み)。
         'Content-Language': 'en-US',
+        'Accept-Language': 'en-US',
       },
       body: JSON.stringify(body),
     },
@@ -142,6 +146,7 @@ export async function createOffer(
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       'Content-Language': 'en-US',
+      'Accept-Language': 'en-US',
     },
     body: JSON.stringify(body),
   });
