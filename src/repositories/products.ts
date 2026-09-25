@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getActiveSkuStrategy } from '@/lib/sku/skuStrategy';
 
 /**
  * products / product_images テーブルのCRUD(Phase1-STEP3, §110 step3)。
@@ -82,29 +83,26 @@ function patchToRow(patch: ProductPatch): Record<string, unknown> {
 }
 
 /**
- * §14のSKU採番規則(例: OF-260924-0001 = OF-YYMMDD-連番)。
- * TODO: 現状は「その日のSKU件数+1」のため、同時登録が重なった場合に
- * 採番が衝突する可能性がある(低頻度利用のPhase1では許容)。
- * 将来的にはDBのシーケンスやadvisory lockで排他制御する。
+ * §14のSKU採番。実際の採番形式は lib/sku/skuStrategy.ts に切り出してあり、
+ * 将来(仕入・注文・利益管理機能の統合時)に形式を差し替える場合は
+ * そちらのgetActiveSkuStrategy()だけを変更すればよい(この関数・呼び出し元は変更不要)。
  */
 export async function generateNextSku(organizationId: string): Promise<string> {
   const supabase = getSupabaseServerClient();
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const prefix = `OF-${yy}${mm}${dd}-`;
+  const strategy = getActiveSkuStrategy();
 
-  const { count, error } = await supabase
-    .from('products')
-    .select('id', { count: 'exact', head: true })
-    .eq('organization_id', organizationId)
-    .like('sku', `${prefix}%`);
-
-  if (error) throw error;
-
-  const next = (count ?? 0) + 1;
-  return `${prefix}${String(next).padStart(4, '0')}`;
+  return strategy.generate({
+    organizationId,
+    countExistingWithPrefix: async (prefix) => {
+      const { count, error } = await supabase
+        .from('products')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organizationId)
+        .like('sku', `${prefix}%`);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 }
 
 export async function createProduct(params: {

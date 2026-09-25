@@ -1,9 +1,11 @@
 import type { EbayPublishResult } from '@/types/ebay';
+import { assertValidSku } from '@/lib/sku/skuStrategy';
 
 /**
  * TODO(§66-71, §76): 実装対象。eBay Inventory API。
  * publishListing()は以下の順序を厳守する(§67, §70二重出品防止):
- *   1. Validation
+ *   1. Validation(SKU必須チェックを含む。2026-09-25の方針: 出品時は必ずSKUを
+ *      設定する。SKUが空ならこの時点でエラーとし、以降のAPI呼び出しへ進まない)
  *   2. 画像準備(services/ebay/media.ts)
  *   3. createOrReplaceInventoryItem
  *   4. createOffer
@@ -18,6 +20,13 @@ import type { EbayPublishResult } from '@/types/ebay';
  * 途中から再開する(全部やり直さない)。
  * §76: createOrReplaceInventoryItemは部分PATCHではなく置換動作。
  * 更新前に既存値を取得し、必要情報を保持したまま送信する。
+ *
+ * 将来の仕入・注文・利益管理機能統合に向けて(2026-09-25の方針追加):
+ * SKUはeBayのInventory Item識別子であると同時に、将来的に仕入記録・注文・
+ * 利益計算とも突き合わせるキーになる想定。そのため出品(Publish)の入口である
+ * この2つの関数は、SKUが空/未設定の状態で絶対に呼び出されないことを
+ * assertValidSku()で保証する(採番形式そのものは lib/sku/skuStrategy.ts 側で
+ * 差し替え可能にしてある)。
  */
 export interface InventoryItemPayload {
   sku: string;
@@ -32,6 +41,7 @@ export interface InventoryItemPayload {
 export async function createOrReplaceInventoryItem(
   _payload: InventoryItemPayload,
 ): Promise<void> {
+  assertValidSku(_payload.sku);
   throw new Error('createOrReplaceInventoryItem is not implemented yet (§68, §76)');
 }
 
@@ -45,6 +55,7 @@ export async function createOffer(_params: {
   fulfillmentPolicyId: string;
   returnPolicyId: string;
 }): Promise<{ offerId: string }> {
+  assertValidSku(_params.sku);
   throw new Error('createOffer is not implemented yet (§66-67)');
 }
 

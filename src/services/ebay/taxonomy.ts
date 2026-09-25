@@ -29,10 +29,12 @@ export async function getDefaultCategoryTreeId(marketplaceId: string): Promise<s
   const cached = categoryTreeIdCache.get(marketplaceId);
   if (cached) return cached;
 
+  // 注意: 他のTaxonomy APIエンドポイントと違い、get_default_category_tree_idは
+  // "category_tree/"を挟まず直下にある(/commerce/taxonomy/v1/get_default_category_tree_id)。
+  // ここに"category_tree/"を付けると、eBay側が category_tree_id="get_default_category_tree_id"
+  // という不正なパスパラメータとして解釈し404を返す。
   const res = await ebayFetch(
-    `/commerce/taxonomy/v1/category_tree/get_default_category_tree_id?marketplace_id=${encodeURIComponent(
-      marketplaceId,
-    )}`,
+    `/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=${encodeURIComponent(marketplaceId)}`,
     marketplaceId,
   );
   if (!res.ok) {

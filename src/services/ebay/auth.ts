@@ -80,8 +80,28 @@ export async function getEbayAppAccessToken(): Promise<EbayTokenSet> {
 }
 
 /**
+ * User Access Token(Authorization Code Grant, §9)で要求するスコープ一覧。
+ *
+ * 2026-09-25の方針追加: 出品(Inventory/Account)に必要なものに加えて、
+ * 将来この画面へ仕入・注文・利益管理機能を統合する計画があるため、
+ * 今のうちに注文情報(sell.fulfillment)と入出金・手数料情報(sell.finances)の
+ * スコープも含めて認可しておく(ADMINによる連携をやり直さずに済むように)。
+ * 実際にこれらのAPIを呼ぶ実装(注文同期・利益計算)は別途設計が渡ってから行う —
+ * ここでは「後で使えるように、最初の認可時点でスコープだけ確保しておく」。
+ */
+export const EBAY_OAUTH_SCOPES: readonly string[] = [
+  // 出品に必要(Phase1のstep9以降で実際に使用)
+  'https://api.ebay.com/oauth/api_scope/sell.inventory',
+  'https://api.ebay.com/oauth/api_scope/sell.account',
+  // 将来の仕入・注文・利益管理統合向け(2026-09-25方針追加、実装は別途)
+  'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+  'https://api.ebay.com/oauth/api_scope/sell.finances',
+];
+
+/**
  * TODO(§9): User Access Token(Authorization Code Grant)。ADMINによるeBayアカウント連携
  * (§110 step9)で実装する。Inventory/Account API等、出品者本人の操作が必要なAPIで使用する。
+ * 認可URL生成時は必ずEBAY_OAUTH_SCOPESを使うこと(個別にスコープ文字列を書かない)。
  */
 export function buildAuthorizationUrl(_state: string): string {
   throw new Error('buildAuthorizationUrl is not implemented yet (§9, §110 step9)');

@@ -87,3 +87,10 @@ npm run dev
 8. Condition取得(Metadata API)
 9. eBay OAuth
 10. Business Policies / Inventory Location
+
+## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
+
+このアプリへ、将来的に仕入・注文・利益管理の機能を統合する計画がある。現時点(eBay Developer Program承認待ち)ではコードの実装はまだ先だが、あとから手戻りが出ないよう以下の2点だけ設計に反映済み。
+
+1. **eBay OAuthのスコープ(§9)**: `src/services/ebay/auth.ts` の `EBAY_OAUTH_SCOPES` に、出品に必要な `sell.inventory` / `sell.account` に加えて、`sell.fulfillment`(注文情報)・`sell.finances`(入出金・手数料)も含めてある。ADMINが最初にeBayアカウントを認可する時点(§110 step9)でこれらのスコープもまとめて許可を得ておき、将来注文・利益管理機能を追加する際にeBay連携をやり直さずに済むようにする狙い。実際に注文同期・利益計算のAPIを呼ぶ実装は、別途渡される設計に基づいて後日行う。
+2. **SKU採番の差し替えやすさ**: SKU採番ロジックを `src/lib/sku/skuStrategy.ts` に切り出した(現状の形式 `OF-YYMMDD-連番` は `dateSequenceSkuStrategy` として実装)。将来、仕入・注文管理と整合する別の採番形式に変更する場合は、この1ファイルの `getActiveSkuStrategy()` の返り値を差し替えるだけでよく、`repositories/products.ts` やUIコンポーネントの変更は不要な設計にしてある。また `src/services/ebay/inventory.ts` のInventory API呼び出し(`createOrReplaceInventoryItem` / `createOffer`、現状はまだスタブ)は `assertValidSku()` により、SKUが空の状態では絶対に実行されないようにしてある(出品時は必ずSKUを設定する、という方針をコードレベルで担保)。
