@@ -248,6 +248,9 @@ export async function publishOffer(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        // §76: 他のInventory API呼び出しと同様、Accept-Languageが無いとerrorId 25709になる。
+        'Content-Language': 'en-US',
+        'Accept-Language': 'en-US',
       },
     },
   );
