@@ -179,7 +179,12 @@ export async function createOffer(
     const text = await res.text().catch(() => '');
     // §71: 同一SKUに対して既にOfferが存在する場合(25002)、再試行時はそのOfferIdを
     // 再利用できるようにする(全部やり直しにしない = 部分再開)。
+    // 2026-09-25追加の修正: eBayのエラーレスポンス自体にparameters[].name === 'offerId'として
+    // 既存のOffer IDが含まれているため、まずそちらを優先して使う(実機確認済み、確実)。
+    // 取れなかった場合のみGET検索にフォールバックする。
     if (res.status === 400 && text.includes('25002')) {
+      const offerIdFromError = extractOfferIdFromErrorBody(text);
+      if (offerIdFromError) return { offerId: offerIdFromError };
       const existing = await findExistingOfferId(accessToken, params.sku, params.marketplaceId);
       if (existing) return { offerId: existing };
     }
@@ -188,6 +193,28 @@ export async function createOffer(
 
   const json = (await res.json()) as { offerId: string };
   return { offerId: json.offerId };
+}
+
+/**
+ * §71: eBayのerrorId 25002("Offer entity already exists")のレスポンス本文には
+ * `errors[].parameters[]`に`{name: "offerId", value: "<既存のOffer ID>"}`という形で
+ * 既存Offer IDがそのまま含まれている(2026-09-25 Sandbox実機確認済み)。
+ * これを最優先で使うことで、GET検索を待たずに即座に部分再開できる。
+ */
+function extractOfferIdFromErrorBody(text: string): string | null {
+  try {
+    const json = JSON.parse(text) as {
+      errors?: { parameters?: { name?: string; value?: string }[] }[];
+    };
+    for (const error of json.errors ?? []) {
+      for (const param of error.parameters ?? []) {
+        if (param.name === 'offerId' && param.value) return param.value;
+      }
+    }
+  } catch {
+    // JSONとして解釈できない場合は無視し、GET検索へフォールバックする。
+  }
+  return null;
 }
 
 /**
