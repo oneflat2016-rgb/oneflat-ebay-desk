@@ -576,6 +576,11 @@ create policy "audit_logs: same organization select"
   on audit_logs for select
   using (organization_id = current_organization_id());
 
+-- §110 step11: Publish時にaudit_logsへINSERTするためのポリシー(元々SELECTのみだった)。
+create policy "audit_logs: same organization insert"
+  on audit_logs for insert
+  with check (organization_id = current_organization_id());
+
 -- NOTE: orders/order_items/finance_transactions/shipping_actuals は
 -- Phase2でorganization紐付け方法(複数事業者対応含む)を確定してから
 -- 本格的なRLSポリシーを追加する。現時点ではservice_role経由の

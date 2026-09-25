@@ -106,6 +106,15 @@ export interface ListingFormState {
   returnPolicyId: string | null;
   merchantLocationKey: string | null;
 
+  /**
+   * §110 step11: eBay Offerの必須項目(価格・数量・通貨)。
+   * DBのlisting_drafts.price/currency/quantityへそのまま対応する。
+   * priceは文字列で保持し(入力途中の"12."等を許容するため)、Publish直前に数値化して検証する。
+   */
+  price: string;
+  quantity: number;
+  currency: string;
+
   checklist: ChecklistState;
 
   templateColors: TemplateColors;

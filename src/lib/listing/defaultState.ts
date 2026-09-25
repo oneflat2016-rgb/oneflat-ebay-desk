@@ -41,6 +41,9 @@ export function createSampleListingFormState(): ListingFormState {
     paymentPolicyId: null,
     returnPolicyId: null,
     merchantLocationKey: null,
+    price: '',
+    quantity: 1,
+    currency: 'USD',
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };
@@ -71,6 +74,9 @@ export function createEmptyListingFormState(): ListingFormState {
     paymentPolicyId: null,
     returnPolicyId: null,
     merchantLocationKey: null,
+    price: '',
+    quantity: 1,
+    currency: 'USD',
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };

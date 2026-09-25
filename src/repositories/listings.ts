@@ -26,6 +26,11 @@ export interface ListingDraftRecord {
   returnPolicyId: string | null;
   merchantLocationKey: string | null;
   title: string | null;
+  descriptionHtml: string | null;
+  /** §110 step11: eBay Offerの必須項目。DBはnumeric/textだが、JS側はstringで保持する。 */
+  price: string | null;
+  currency: string | null;
+  quantity: number;
   status: 'DRAFT' | 'READY' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
   createdBy: string;
   updatedBy: string | null;
@@ -45,6 +50,11 @@ export interface ListingDraftPatch {
   returnPolicyId?: string | null;
   merchantLocationKey?: string | null;
   title?: string | null;
+  descriptionHtml?: string | null;
+  price?: string | null;
+  currency?: string | null;
+  quantity?: number;
+  status?: ListingDraftRecord['status'];
   updatedBy?: string;
 }
 
@@ -63,6 +73,10 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
     returnPolicyId: (row.return_policy_id as string | null) ?? null,
     merchantLocationKey: (row.merchant_location_key as string | null) ?? null,
     title: (row.title as string | null) ?? null,
+    descriptionHtml: (row.description_html as string | null) ?? null,
+    price: row.price === null || row.price === undefined ? null : String(row.price),
+    currency: (row.currency as string | null) ?? null,
+    quantity: (row.quantity as number | null) ?? 1,
     status: row.status as ListingDraftRecord['status'],
     createdBy: row.created_by as string,
     updatedBy: (row.updated_by as string | null) ?? null,
@@ -84,6 +98,14 @@ function patchToRow(patch: ListingDraftPatch): Record<string, unknown> {
   if ('returnPolicyId' in patch) row.return_policy_id = patch.returnPolicyId;
   if ('merchantLocationKey' in patch) row.merchant_location_key = patch.merchantLocationKey;
   if ('title' in patch) row.title = patch.title;
+  if ('descriptionHtml' in patch) row.description_html = patch.descriptionHtml;
+  if ('price' in patch) {
+    const p = patch.price;
+    row.price = p === null || p === undefined || p.trim() === '' ? null : Number(p);
+  }
+  if ('currency' in patch) row.currency = patch.currency;
+  if ('quantity' in patch) row.quantity = patch.quantity;
+  if ('status' in patch) row.status = patch.status;
   if ('updatedBy' in patch) row.updated_by = patch.updatedBy;
   return row;
 }
@@ -277,6 +299,82 @@ export async function getEbayAspectValuesForDraft(
   return result;
 }
 
-export async function lockDraftForPublishing(_draftId: string): Promise<boolean> {
-  throw new Error('lockDraftForPublishing is not implemented yet (§70)');
+/**
+ * §70(§110 step11): Publish開始時に status を PUBLISHING へ変更し、二重出品を防ぐ。
+ * DRAFT/READY/FAILEDからのみ遷移を許可する(既にPUBLISHING/PUBLISHEDのdraftからの
+ * 同時Publishはここで弾かれる = サーバー側ロック)。
+ * 戻り値: trueならロック取得成功、falseならすでに他のPublish処理が進行中/完了済み。
+ */
+export async function lockDraftForPublishing(draftId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listing_drafts')
+    .update({ status: 'PUBLISHING', updated_at: new Date().toISOString() })
+    .eq('id', draftId)
+    .in('status', ['DRAFT', 'READY', 'FAILED'])
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
+ * §71: Publish処理が失敗した場合、statusをFAILEDへ戻す(次回再試行できるようにする)。
+ * §70でPUBLISHINGへロックした後、途中で例外が起きた場合に呼び出し元がこれを呼ぶ。
+ */
+export async function markDraftPublishFailed(draftId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listing_drafts')
+    .update({ status: 'FAILED', updated_at: new Date().toISOString() })
+    .eq('id', draftId);
+  if (error) throw error;
+}
+
+/**
+ * §66-71: Publish成功後、statusをPUBLISHEDへ変更する。
+ */
+export async function markDraftPublished(draftId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listing_drafts')
+    .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
+    .eq('id', draftId);
+  if (error) throw error;
+}
+
+/**
+ * §18(§110 step11): Publish成功後の記録を`listings`テーブル(公開後の正本)へ保存する。
+ * listing_drafts自体はあくまで「下書き」であり、公開済みListing ID/Offer IDは
+ * こちらの別テーブルで管理する(schema.sqlのコメント §18参照)。
+ */
+export async function createPublishedListing(params: {
+  productId: string;
+  listingDraftId: string;
+  sku: string;
+  ebayListingId: string;
+  ebayOfferId: string;
+  marketplaceId: string;
+  categoryId: string | null;
+  createdBy: string;
+}): Promise<{ id: string }> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .insert({
+      product_id: params.productId,
+      listing_draft_id: params.listingDraftId,
+      sku: params.sku,
+      ebay_listing_id: params.ebayListingId,
+      ebay_offer_id: params.ebayOfferId,
+      marketplace_id: params.marketplaceId,
+      category_id: params.categoryId,
+      status: 'ACTIVE',
+      published_at: new Date().toISOString(),
+      created_by: params.createdBy,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return { id: data.id as string };
 }

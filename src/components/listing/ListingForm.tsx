@@ -6,7 +6,9 @@ import type { EbayAspectDefinition } from '@/types/ebay';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
+import { publishListingToEbay } from '@/app/(app)/listings/new/publishActions';
 import { ImagesSection } from './ImagesSection';
+import { PricingSection } from './PricingSection';
 import { AiAnalysisSection } from './AiAnalysisSection';
 import { CategorySuggestSection } from './CategorySuggestSection';
 import { GenreSection } from './GenreSection';
@@ -26,6 +28,12 @@ type SaveStatus =
   | { kind: 'saving' }
   | { kind: 'saved'; at: string }
   | { kind: 'conflict'; target: 'product' | 'draft' }
+  | { kind: 'error'; message: string };
+
+type PublishStatus =
+  | { kind: 'idle' }
+  | { kind: 'publishing' }
+  | { kind: 'published'; listingId: string }
   | { kind: 'error'; message: string };
 
 /**
@@ -54,6 +62,8 @@ export function ListingForm({
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' });
   const [isSaving, startSaveTransition] = useTransition();
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>({ kind: 'idle' });
+  const [isPublishing, startPublishTransition] = useTransition();
   // §39-42(§110 step7): 現在のカテゴリーに対応するeBay Aspect定義。
   // 保存時にstate.aspectValuesと突き合わせてrequired/usage/dataTypeを一緒に保存するために保持する。
   const [ebayAspects, setEbayAspects] = useState<EbayAspectDefinition[]>([]);
@@ -110,6 +120,35 @@ export function ListingForm({
       }
       if (result.identity) setIdentity(result.identity);
       setSaveStatus({ kind: 'saved', at: result.savedAt ?? new Date().toISOString() });
+    });
+  }
+
+  /**
+   * §70: Publishボタンは「保存 → Publish」を1操作で行う。
+   * 直前の入力を必ずDBへ反映してからeBayへ送るため、まずsaveListingDraftを呼び、
+   * 返ってきた最新identityでpublishListingToEbayを呼ぶ(保存に失敗した場合は
+   * Publishへ進まない)。
+   */
+  function handlePublish() {
+    setPublishStatus({ kind: 'publishing' });
+    startPublishTransition(async () => {
+      const saveResult = await saveListingDraft(identity, state, ebayAspects);
+      if (!saveResult.ok || !saveResult.identity) {
+        setPublishStatus({
+          kind: 'error',
+          message: '保存に失敗したため、Publishを中止しました。上の保存状況を確認してください。',
+        });
+        return;
+      }
+      setIdentity(saveResult.identity);
+      setSaveStatus({ kind: 'saved', at: saveResult.savedAt ?? new Date().toISOString() });
+
+      const publishResult = await publishListingToEbay(saveResult.identity, state);
+      if (!publishResult.ok) {
+        setPublishStatus({ kind: 'error', message: publishResult.error ?? 'Publishに失敗しました。' });
+        return;
+      }
+      setPublishStatus({ kind: 'published', listingId: publishResult.listingId ?? '' });
     });
   }
 
@@ -208,6 +247,13 @@ export function ListingForm({
           onChange={(patchValue) => patch(patchValue)}
         />
 
+        <PricingSection
+          price={state.price}
+          quantity={state.quantity}
+          currency={state.currency}
+          onChange={(patchValue) => patch(patchValue)}
+        />
+
         <BilingualSection
           sectionNumber={3}
           heading="About This Item(商品について)"
@@ -278,6 +324,18 @@ export function ListingForm({
           </button>
           <SaveStatusLabel status={saveStatus} />
         </div>
+
+        <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={handlePublish}
+            disabled={isPublishing || isSaving}
+          >
+            {isPublishing ? 'eBayへ出品しています…' : 'eBayへ出品する(Publish)'}
+          </button>
+          <PublishStatusLabel status={publishStatus} />
+        </div>
       </div>
 
       <PreviewPanel state={state} />
@@ -307,6 +365,27 @@ function SaveStatusLabel({ status }: { status: SaveStatus }) {
     return (
       <span className="hint" style={{ color: '#c0392b' }}>
         他の人がこの{status.target === 'product' ? '商品' : '出品情報'}を先に更新しました。ページを再読み込みしてから、もう一度編集してください。
+      </span>
+    );
+  }
+  return (
+    <span className="hint" style={{ color: '#c0392b' }}>
+      {status.message}
+    </span>
+  );
+}
+
+function PublishStatusLabel({ status }: { status: PublishStatus }) {
+  if (status.kind === 'idle') {
+    return <span className="hint">まだeBayへ出品していません</span>;
+  }
+  if (status.kind === 'publishing') {
+    return <span className="hint">eBayへ送信しています…(完了まで数秒かかることがあります)</span>;
+  }
+  if (status.kind === 'published') {
+    return (
+      <span className="hint" style={{ color: 'var(--accent)' }}>
+        eBayへ出品しました(Listing ID: {status.listingId})
       </span>
     );
   }

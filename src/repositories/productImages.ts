@@ -106,6 +106,43 @@ export async function listImagesWithUrls(productId: string): Promise<ProductImag
   return results;
 }
 
+/**
+ * §69(§110 step11): eBay Inventory API(createOrReplaceInventoryItem)の
+ * product.imageUrlsに渡す画像URLを準備する。
+ *
+ * 2026-09-25の設計判断: eBayレガシーのTrading APIと異なり、Sell Inventory APIの
+ * imageUrlsは「eBayが到達可能な公開HTTPS URL」であればよく、事前にEPS
+ * (Picture Services)へアップロードしておく必要はない。そのためservices/ebay/media.ts
+ * (Media API経由でEPS URLを取得するスタブ)は使わず、Supabase Storageの署名付きURLを
+ * そのまま渡す。eBayはInventory Item作成時にこのURLを取得して自社側へ複製するため、
+ * 署名URLの有効期限(24時間、通常のプレビュー用より長め)がPublish処理の実行時間を
+ * 上回っていれば問題ない。
+ */
+const EBAY_IMAGE_URL_EXPIRY_SECONDS = 24 * 60 * 60;
+
+export async function getImageUrlsForEbay(productId: string, maxImages = 12): Promise<string[]> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('product_images')
+    .select('original_path')
+    .eq('product_id', productId)
+    .order('is_primary', { ascending: false })
+    .order('sort_order', { ascending: true })
+    .limit(maxImages);
+  if (error) throw error;
+
+  const urls: string[] = [];
+  for (const row of data ?? []) {
+    const path = row.original_path as string;
+    const { data: signed, error: signError } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, EBAY_IMAGE_URL_EXPIRY_SECONDS);
+    if (signError) throw signError;
+    if (signed?.signedUrl) urls.push(signed.signedUrl);
+  }
+  return urls;
+}
+
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

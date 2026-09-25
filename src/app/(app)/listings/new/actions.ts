@@ -94,6 +94,10 @@ export async function saveListingDraft(
       returnPolicyId: state.returnPolicyId,
       merchantLocationKey: state.merchantLocationKey,
       title: state.title || null,
+      // §110 step11: eBay Offerの必須項目(価格・数量・通貨)
+      price: state.price || null,
+      currency: state.currency || null,
+      quantity: state.quantity,
       updatedBy: profile.id,
     };
 

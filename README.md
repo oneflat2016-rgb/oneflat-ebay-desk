@@ -1,14 +1,19 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP10)
+# ONEFLAT eBay Listing Desk (Phase1-STEP11)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)・10番(Business Policies / Inventory Locationの取得・選択)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)・10番(Business Policies / Inventory Locationの取得・選択)・11番(Inventory Item / Offer作成・実際のeBayへのPublish)** が完了している。
 
-### ⚠️ 今回追加で必要な作業(Supabase側SQL + Vercel環境変数 + eBay Developer Portal設定)
+### ⚠️ 今回追加で必要な作業(Supabase側SQL)
 
-1. **Supabase**: `supabase/ebay_accounts_unique.sql` を新たに実行する(SQL Editorで貼り付けて実行)。
-2. **Vercel環境変数**: `TOKEN_ENCRYPTION_KEY` を新規追加する。ターミナルで `openssl rand -base64 32` を実行して出た文字列をそのまま値として設定する(Refresh Tokenの暗号化に使う鍵)。
-3. **eBay Developer Portal**: アプリの設定画面で「RuName(redirect URL name)」を作成し、本番URLの `https://oneflat-ebay-desk.vercel.app/api/ebay/oauth/callback` を紐づける。作成されたRuName(文字列)をVercelの `EBAY_REDIRECT_URI` に設定する。
-4. **Sandboxでテストする場合**: eBayの認可画面(auth.sandbox.ebay.com)は普段使っているeBayアカウントではログインできない。eBay Developer Portalの「Sandbox testing」からSandbox用のテストユーザーアカウントを作成し、そのテストアカウントでログインする必要がある。
+1. **Supabase**: `audit_logs` テーブルにINSERTポリシーを追加する必要がある(元々SELECTのみだったため)。SQL Editorで以下を実行してください。
+
+   ```sql
+   create policy "audit_logs: same organization insert"
+     on audit_logs for insert
+     with check (organization_id = current_organization_id());
+   ```
+
+   他のテーブル(`listing_drafts`の`price`/`currency`/`quantity`列、`listings`テーブル)は既存の`schema.sql`にすでに含まれているため、追加のマイグレーションは不要です。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -84,7 +89,14 @@ npm run dev
   - Inventory Location(保管場所)はこのアプリからADMINのみ新規登録できる(`POST /api/ebay/inventory-locations`、eBayアカウントへの書き込みを伴うため)。
   - 選択結果は `listing_drafts.fulfillment_policy_id` / `payment_policy_id` / `return_policy_id` / `merchant_location_key` として保存される(これらの列は元々`schema.sql`に用意済みだったため、追加のDBマイグレーションは不要)。
   - eBayアカウント未連携(§9未実施)の場合は、`/settings`で連携するよう案内が表示される。
-  - 実際にこれらのID(Policy ID / Location Key)を使ってInventory Item・Offerを作成し出品する処理(Publish本体)はstep11以降で実装する。
+  - 実際にこれらのID(Policy ID / Location Key)を使ってInventory Item・Offerを作成し出品する処理(Publish本体)はstep11で実装した(下記)。
+- **価格・数量入力 + eBayへのPublish(§110 step11, §66-71, §76)**: `/listings/new` に新設した「価格・数量(eBay Offerに必須)」欄で価格・通貨・数量を入力し、一番下の「eBayへ出品する(Publish)」ボタンで実際にeBay Sandbox(または本番)へ出品できる。
+  - `price` / `currency` / `quantity` を `ListingFormState` / `listing_drafts` に追加した(DB列自体は元々`schema.sql`に用意済みだったため追加マイグレーション不要)。
+  - Publishボタンを押すと、まず現在の入力内容を保存(既存の「保存」と同じ処理)→ 必須項目(タイトル・カテゴリー・Condition・配送/支払い/返品ポリシー・保管場所・価格・数量・商品写真1枚以上)のバリデーション → `listing_drafts.status`を`PUBLISHING`へロック(§70: サーバー側で二重出品を防止、同じ下書きへ同時に2回Publishを押しても片方は拒否される)→ eBay Sell Inventory API(`PUT /inventory_item/{sku}` → `POST /offer` → `POST /offer/{offerId}/publish/`)を順に呼ぶ → 成功したら`listings`テーブル(公開後の正本)へ`ebay_listing_id`/`ebay_offer_id`を保存し、`listing_drafts.status`を`PUBLISHED`に変更 → `audit_logs`へ記録、という順序で処理する。
+  - 商品写真は、Supabase Storage(非公開バケット)の署名付きURL(有効期限24時間)をそのままeBayの`imageUrls`として渡す設計にした。eBayのレガシーTrading APIと異なり、Sell Inventory APIは事前にMedia API(EPS)へアップロードしておく必要がないため(`services/ebay/media.ts`のEPSスタブは現状未使用のまま)。
+  - eBay Metadata APIの`conditionId`(数値)は、Sell Inventory APIが要求する`ConditionEnum`文字列(例: `USED_EXCELLENT`)へ`src/lib/ebay/conditionEnumMap.ts`の対応表で変換する。未登録のconditionIdの場合はエラーにする(推測変換はしない、§117-4)。
+  - Publish失敗時(eBay側のエラー・バリデーション失敗等)は`listing_drafts.status`を`FAILED`に戻し、再度Publishボタンを押せば最初からやり直せる(§71。`createOrReplaceInventoryItem`/`createOffer`は同じ内容なら再実行しても安全な設計)。
+  - `audit_logs`テーブルは元々SELECTポリシーしかなかったため、INSERTポリシーを追加した(上記「今回追加で必要な作業」参照)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -94,8 +106,9 @@ npm run dev
 - 管理画面からのユーザー招待・Role割り当て(§8) — 未実装。`profiles` テーブルへのレコード作成は現状手動(SupabaseダッシュボードでのSQL実行を想定)
 - チェックリスト・配色テンプレートのDB保存(§89-90) — 未実装。クライアント内stateのみ(保存ボタンを押しても消える)
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
-- 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ)
-- eBay Taxonomy/Metadata/Account/Inventory/Media API連携 — `src/services/ebay/*.ts` にシグネチャのみ用意(呼ぶと例外を投げる)
+- 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ。Publish時は`sort_order`順(is_primary優先)で画像を送る)
+- eBay Media API(EPS) — 未実装のまま(step11の設計判断により、Sell Inventory APIには署名付きURLを直接渡しているため現時点では不要)
+- 出品済みListingの終了(End Item)・在庫同期・価格改定・再出品 — 未実装(Publish=新規出品のみ。`listings`テーブルへの記録までは実装済み)
 - Claude APIによるタイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析は実装済み)
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
@@ -122,9 +135,9 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-11. Inventory Item / Offer の作成・実際のeBayへのPublish(§66-71)
+12番以降は指示書側で次の番号がどの機能か確定次第、順に着手する(Phase2の注文/利益管理機能、または出品済みListingの管理画面などが候補)。
 
-(7番の動的Item Specifics、8番の動的Condition、9番のeBay OAuth、10番のBusiness Policies/Inventory Locationは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
+(11番のPublishまで完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 
