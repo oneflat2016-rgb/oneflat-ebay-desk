@@ -98,19 +98,112 @@ export const EBAY_OAUTH_SCOPES: readonly string[] = [
   'https://api.ebay.com/oauth/api_scope/sell.finances',
 ];
 
-/**
- * TODO(§9): User Access Token(Authorization Code Grant)。ADMINによるeBayアカウント連携
- * (§110 step9)で実装する。Inventory/Account API等、出品者本人の操作が必要なAPIで使用する。
- * 認可URL生成時は必ずEBAY_OAUTH_SCOPESを使うこと(個別にスコープ文字列を書かない)。
- */
-export function buildAuthorizationUrl(_state: string): string {
-  throw new Error('buildAuthorizationUrl is not implemented yet (§9, §110 step9)');
+function getEbayAuthBaseUrl(): string {
+  return getEbayEnv() === 'production' ? 'https://auth.ebay.com' : 'https://auth.sandbox.ebay.com';
 }
 
-export async function exchangeCodeForTokens(_code: string): Promise<{
+/**
+ * §9(§110 step9): User Access Token(Authorization Code Grant)の認可URLを生成する。
+ * ADMINが「eBayアカウントを連携」ボタンを押した際にこのURLへリダイレクトする。
+ * EBAY_REDIRECT_URIは実URLではなく、eBay Developer Portalで発行される
+ * 「RuName」(redirect URL name)を指定する(eBay OAuthの仕様)。
+ * stateはCSRF対策のランダム値で、呼び出し元(oauth/startルート)がCookieに保存し、
+ * コールバック時に一致確認する。
+ */
+export function buildAuthorizationUrl(state: string): string {
+  const { clientId } = getEbayCredentials();
+  const redirectUri = process.env.EBAY_REDIRECT_URI;
+  if (!redirectUri) {
+    throw new Error('EBAY_REDIRECT_URI is not set');
+  }
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: EBAY_OAUTH_SCOPES.join(' '),
+    state,
+  });
+  return `${getEbayAuthBaseUrl()}/oauth2/authorize?${params.toString()}`;
+}
+
+export interface EbayUserTokenSet {
   accessToken: string;
   refreshToken: string;
-  expiresIn: number;
-}> {
-  throw new Error('exchangeCodeForTokens is not implemented yet (§9, §110 step9)');
+  accessTokenExpiresAt: number; // epoch seconds
+  refreshTokenExpiresAt: number; // epoch seconds
+}
+
+/**
+ * §9(§110 step9): eBayから受け取った認可コード(code)をUser Access Token +
+ * Refresh Tokenに交換する。呼び出し元(oauth/callbackルート)がRefresh Tokenを
+ * 暗号化してebay_accountsへ保存する(§102: このファイルの外へ平文のまま渡さない)。
+ */
+export async function exchangeCodeForTokens(code: string): Promise<EbayUserTokenSet> {
+  const { clientId, clientSecret } = getEbayCredentials();
+  const redirectUri = process.env.EBAY_REDIRECT_URI;
+  if (!redirectUri) {
+    throw new Error('EBAY_REDIRECT_URI is not set');
+  }
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const now = Math.floor(Date.now() / 1000);
+
+  const res = await fetch(`${getEbayApiBaseUrl()}/identity/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay OAuth token exchange failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as {
+    access_token: string;
+    expires_in: number;
+    refresh_token: string;
+    refresh_token_expires_in: number;
+  };
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    accessTokenExpiresAt: now + json.expires_in,
+    refreshTokenExpiresAt: now + json.refresh_token_expires_in,
+  };
+}
+
+/**
+ * §9(§110 step9以降): 保存済みRefresh TokenからUser Access Tokenを再発行する。
+ * Inventory/Account API等を呼ぶ際(step10以降)に使用する想定。
+ */
+export async function refreshUserAccessToken(
+  refreshToken: string,
+): Promise<{ accessToken: string; expiresAt: number }> {
+  const { clientId, clientSecret } = getEbayCredentials();
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const now = Math.floor(Date.now() / 1000);
+
+  const res = await fetch(`${getEbayApiBaseUrl()}/identity/v1/oauth2/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${basicAuth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      scope: EBAY_OAUTH_SCOPES.join(' '),
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay OAuth token refresh failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as { access_token: string; expires_in: number };
+  return { accessToken: json.access_token, expiresAt: now + json.expires_in };
 }

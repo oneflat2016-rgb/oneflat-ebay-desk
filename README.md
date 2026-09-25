@@ -1,11 +1,14 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP8)
+# ONEFLAT eBay Listing Desk (Phase1-STEP9)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)** が完了している。
 
-### ⚠️ 今回追加でSupabase側の作業が必要です
+### ⚠️ 今回追加で必要な作業(Supabase側SQL + Vercel環境変数 + eBay Developer Portal設定)
 
-`supabase/condition_cache.sql` を**新たに実行する必要があります**(`storage.sql`と同じ位置づけの追加ファイルです)。SupabaseダッシュボードのSQL Editorで、このファイルの中身を貼り付けて実行してください。
+1. **Supabase**: `supabase/ebay_accounts_unique.sql` を新たに実行する(SQL Editorで貼り付けて実行)。
+2. **Vercel環境変数**: `TOKEN_ENCRYPTION_KEY` を新規追加する。ターミナルで `openssl rand -base64 32` を実行して出た文字列をそのまま値として設定する(Refresh Tokenの暗号化に使う鍵)。
+3. **eBay Developer Portal**: アプリの設定画面で「RuName(redirect URL name)」を作成し、本番URLの `https://oneflat-ebay-desk.vercel.app/api/ebay/oauth/callback` を紐づける。作成されたRuName(文字列)をVercelの `EBAY_REDIRECT_URI` に設定する。
+4. **Sandboxでテストする場合**: eBayの認可画面(auth.sandbox.ebay.com)は普段使っているeBayアカウントではログインできない。eBay Developer Portalの「Sandbox testing」からSandbox用のテストユーザーアカウントを作成し、そのテストアカウントでログインする必要がある。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -65,6 +68,14 @@ npm run dev
   - キャッシュ用に `ebay_condition_cache` テーブルを追加した。**既存プロジェクトでは `supabase/condition_cache.sql` を別途実行する必要がある**(`storage.sql`と同じ位置づけ)。
   - 旧来の「2旧. eBayの状態(固定6択・廃止予定)」セクションは、タイトル候補生成(`titleSuggestions.ts`)がまだこの固定Conditionに依存しているため、そちらの移行と合わせて削除する予定。それまでは両方とも表示される(どちらを選んでも構わないが、実際にeBayへ出品する際の正本は新しい方)。
   - eBayカテゴリー未選択の間、または`EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`未設定時は、この欄は空のまま案内文が表示される。
+- **eBay OAuth連携(§110 step9, §9)**: `/settings`(ADMINのみ)から、ONEFLATのeBayアカウントを一度だけ認可(Authorization Code Grant)する。
+  - 「eBayアカウントを連携」ボタン → `GET /api/ebay/oauth/start`(CSRF対策のstateをCookieに保存しeBayの認可画面へリダイレクト) → eBayでログイン・許可 → `GET /api/ebay/oauth/callback`(state検証 → codeをUser Access Token/Refresh Tokenに交換 → Identity APIでeBayユーザー名取得 → Refresh Tokenを暗号化して保存)という流れ。
+  - 取得したRefresh Tokenは`TOKEN_ENCRYPTION_KEY`(AES-256-GCM)で暗号化した上で`ebay_accounts.refresh_token_encrypted`に保存する(平文では保存しない、§102)。
+  - 認可スコープは`sell.inventory` / `sell.account` / `sell.fulfillment` / `sell.finances`(2026-09-25に方針追加済みのもの)をまとめて要求する。
+  - 実際にInventory API等でこのRefresh Tokenを使ってUser Access Tokenを取得する処理(`refreshUserAccessToken`)は実装済みだが、呼び出し元(出品処理そのもの)はstep10以降で実装する。
+  - `/settings`から連携解除も可能(このアプリ側の記録を消すだけで、eBay側の許可自体は取り消さない旨を画面に案内している)。
+  - `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` / `EBAY_REDIRECT_URI` のいずれか未設定の場合は、連携ボタンの代わりに未設定である旨を表示する。
+  - `ebay_accounts`テーブルは1組織につき1アカウントを想定し、`organization_id`に一意制約を追加した。**既存プロジェクトでは`supabase/ebay_accounts_unique.sql`を別途実行する必要がある**。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -96,16 +107,15 @@ npm run dev
 2. **eBay Developer アカウント(Sandboxアプリ)** — `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` / `EBAY_REDIRECT_URI`。まずSandboxで登録し、Productionは§10の方針どおり完全に分離します。
 3. **Anthropic APIキー** — `ANTHROPIC_API_KEY`。§4のとおりモデル名は環境変数(`ANTHROPIC_MODEL`)で変更可能にしてあります。
 4. **Vercelプロジェクト**(デプロイ先) — 用意でき次第連携します。
-5. PWA用アイコン画像(`public/icons/icon-192.png`, `icon-512.png`) — ロゴが決まり次第追加してください(暫定で未配置)。
+5. **トークン暗号化鍵** — `TOKEN_ENCRYPTION_KEY`(§9)。`openssl rand -base64 32` で生成した文字列をそのまま設定します。eBay Refresh Tokenの暗号化に使うため、これが無いと`/settings`のeBayアカウント連携が動きません。
+6. **eBay Developer PortalのRuName(redirect URL name)** — `EBAY_REDIRECT_URI`(§9)。アプリの設定画面で作成し、`https://oneflat-ebay-desk.vercel.app/api/ebay/oauth/callback` を紐づけます。
+7. PWA用アイコン画像(`public/icons/icon-192.png`, `icon-512.png`) — ロゴが決まり次第追加してください(暫定で未配置)。
 
 ## 次に実装するもの(指示書§110の順序)
 
-9. eBay OAuth(User Access Token, Authorization Code Grant)
-10. Business Policies / Inventory Location
+10. Business Policies / Inventory Location(§66以降のPublish実装に向けた前提データ)
 
-(7番の動的Item Specifics、8番の動的Conditionは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
-
-(7番の動的Item Specificsは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection`)を削除するクリーンアップを別途行う)
+(7番の動的Item Specifics、8番の動的Condition、9番のeBay OAuthは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 

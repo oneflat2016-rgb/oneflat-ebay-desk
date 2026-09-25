@@ -54,7 +54,9 @@ create table if not exists ebay_accounts (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists idx_ebay_accounts_organization on ebay_accounts (organization_id);
+-- §110 step9: 1組織につき連携できるeBayアカウントは1つとする(Phase1の運用方針)。
+-- upsertEbayAccountConnection()のonConflictがこの一意制約に依存する。
+create unique index if not exists idx_ebay_accounts_organization on ebay_accounts (organization_id);
 
 -- ============================================================
 -- §14 products
@@ -477,6 +479,13 @@ alter table shipping_actuals enable row level security;
 alter table ai_runs enable row level security;
 alter table ai_suggestions enable row level security;
 alter table audit_logs enable row level security;
+
+-- §19-20: eBayキャッシュテーブルは正本ではない参照専用データ(組織に紐づかない)のため、
+-- RLSは意図的に無効のままにする。Supabaseプロジェクトによっては新規テーブル作成時に
+-- RLSが自動で有効化されることがあるため、明示的にdisableしておく(冪等)。
+alter table ebay_category_cache disable row level security;
+alter table ebay_aspect_cache disable row level security;
+alter table ebay_condition_cache disable row level security;
 
 -- ヘルパー: 現在ログイン中ユーザーのorganization_id
 create or replace function current_organization_id()
