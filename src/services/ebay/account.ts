@@ -84,3 +84,30 @@ function toPolicy(type: EbayBusinessPolicyType, policyId: string, raw: RawPolicy
     marketplaceId: raw.marketplaceId,
   };
 }
+
+/**
+ * §110 step10: Business Policiesプログラム(Selling Policy Management)への加入。
+ * eBayアカウントがまだ加入していないと fulfillment_policy/payment_policy/return_policy は
+ * 20403(User is not eligible for Business Policy)を返すため、そのときはADMINにこの
+ * エンドポイントを叩いてもらう(eBay側の管理画面からの加入と同等の操作)。
+ * 既に加入済みの場合は`errorId: 20401(already opted in)`のようなエラーになるが、
+ * これは実質成功として扱ってよい(呼び出し元でメッセージを出し分ける)。
+ */
+export async function optInToBusinessPolicies(accessToken: string): Promise<void> {
+  const res = await fetch(`${getEbayApiBaseUrl()}/sell/account/v1/program/opt_in`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ programType: 'SELLING_POLICY_MANAGEMENT' }),
+  });
+  if (res.status === 204 || res.ok) {
+    return;
+  }
+  const body = await res.text().catch(() => '');
+  if (body.includes('already opted in') || body.includes('20401')) {
+    return;
+  }
+  throw new Error(`Business Policiesプログラムへの加入に失敗しました (${res.status}): ${body}`);
+}

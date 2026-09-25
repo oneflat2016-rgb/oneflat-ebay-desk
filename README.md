@@ -78,7 +78,9 @@ npm run dev
   - `ebay_accounts`テーブルは1組織につき1アカウントを想定し、`organization_id`に一意制約を追加した。**既存プロジェクトでは`supabase/ebay_accounts_unique.sql`を別途実行する必要がある**。
 - **Business Policies / Inventory Location(§110 step10)**: `/listings/new` の「9. eBay Business Policies・保管場所」から、配送/支払い/返品ポリシーと発送元(保管場所)を選択できる。
   - eBay Sell Account API(`fulfillment_policy` / `payment_policy` / `return_policy`)・Sell Inventory API(`location`)を、ADMINが連携済みのUser Access Token(§9)で呼び出す。Application Access Tokenでは取得できない出品者本人のデータのため。
-  - 選択肢は必ずeBayのレスポンスから作る(§117-4)。ポリシー自体の新規作成はこのアプリからはできない(eBay側の「Business Policies」画面で作成する必要がある。eBayアカウントでBusiness Policiesプログラムへのopt-inが済んでいない場合はポリシーが0件になるため、その旨をUIに表示する)。
+  - 選択肢は必ずeBayのレスポンスから作る(§117-4)。ポリシー自体の新規作成はこのアプリからはできない(eBay側の「Business Policies」画面で作成する必要がある)。
+  - eBayアカウントが「Business Policies」プログラム(Selling Policy Management)へ未加入の場合、fulfillment/payment/return_policy APIは20403エラーを返す。この場合、ADMINへ「Business Policiesに加入する」ボタンを表示し、`POST /api/ebay/business-policies-opt-in`(`sell/account/v1/program/opt_in`)からその場で加入できるようにしてある。加入後もポリシー自体が0件のままなら、eBay側で個別に作成が必要。
+  - Inventory Location一覧取得で、保管場所が0件のアカウントに対してeBay Sandboxが500(errorId 25001)を返す既知の不具合があるため、その場合は0件として扱う(致命的エラーとして表示しない)。
   - Inventory Location(保管場所)はこのアプリからADMINのみ新規登録できる(`POST /api/ebay/inventory-locations`、eBayアカウントへの書き込みを伴うため)。
   - 選択結果は `listing_drafts.fulfillment_policy_id` / `payment_policy_id` / `return_policy_id` / `merchant_location_key` として保存される(これらの列は元々`schema.sql`に用意済みだったため、追加のDBマイグレーションは不要)。
   - eBayアカウント未連携(§9未実施)の場合は、`/settings`で連携するよう案内が表示される。

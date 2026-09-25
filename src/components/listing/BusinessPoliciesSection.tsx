@@ -108,11 +108,16 @@ export function BusinessPoliciesSection({
       ) : (
         <>
           {data.warnings.length > 0 && (
-            <ul className="subnote" style={{ color: 'var(--danger)' }}>
-              {data.warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+            <>
+              <ul className="subnote" style={{ color: 'var(--danger)' }}>
+                {data.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+              {isAdmin && data.warnings.some((w) => w.includes('not eligible for Business Policy')) && (
+                <BusinessPolicyOptIn onDone={() => setReloadKey((k) => k + 1)} />
+              )}
+            </>
           )}
 
           <PolicySelect
@@ -210,6 +215,45 @@ function PolicySelect({
             </option>
           ))}
         </select>
+      )}
+    </div>
+  );
+}
+
+function BusinessPolicyOptIn({ onDone }: { onDone: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleClick() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/ebay/business-policies-opt-in', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加入に失敗しました。');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      <p className="subnote">
+        このeBayアカウントはまだ「Business Policies」プログラムに加入していないため、配送/支払い/返品ポリシーが1件も表示されません。
+        下のボタンで加入手続きができます(eBayのアカウント設定画面から行うのと同じ操作です)。
+      </p>
+      <button type="button" className="btn primary" disabled={submitting} onClick={handleClick}>
+        {submitting ? '加入しています…' : 'Business Policiesに加入する'}
+      </button>
+      {error && (
+        <p className="subnote" style={{ color: 'var(--danger)' }}>
+          {error}
+        </p>
       )}
     </div>
   );

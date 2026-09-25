@@ -27,6 +27,12 @@ export async function getInventoryLocations(accessToken: string): Promise<EbayIn
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
+    // §note: eBay Sandboxでは、保管場所が1件も無いアカウントに対してこのAPIが
+    // 空配列ではなく500(errorId 25001, "System error.")を返す既知の不具合がある。
+    // その場合は「0件」として扱う(致命的エラーとしてUIに出さない)。
+    if (res.status === 500 && body.includes('25001')) {
+      return [];
+    }
     throw new Error(`eBay Inventory Location APIが失敗しました (${res.status}): ${body}`);
   }
   const json = (await res.json()) as { locations?: RawLocationResponse[] };
