@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EbayBusinessPolicy, EbayInventoryLocation } from '@/types/ebay';
 
 /**
@@ -51,6 +51,24 @@ export function BusinessPoliciesSection({
   const [reloadKey, setReloadKey] = useState(0);
   const [showCreateLocation, setShowCreateLocation] = useState(false);
 
+  // §110 step11の運用改善(2026-09-25追加): このアプリからeBayへ書き込む値は
+  // 必ず商品(下書き)ごとに明示選択させる方針(§117-4)だが、実際の運用では
+  // ONEFLATが各種類ごとに1件しかポリシー/保管場所を持たないことが多いため、
+  // 「候補が1件しかない」場合に限り、未選択の欄へ自動的にその1件を選択する
+  // (=eBay側の設定をそのまま拾う)。候補が2件以上ある場合は誤った推測を避け、
+  // 引き続き手動選択のままにする。propsの最新値はrefで参照する(loadはuseCallbackで
+  // 一度だけ生成されるため、クロージャ内で直接propsを参照すると古い値のままになる)。
+  const latest = useRef({
+    fulfillmentPolicyId,
+    paymentPolicyId,
+    returnPolicyId,
+    merchantLocationKey,
+    onChange,
+  });
+  useEffect(() => {
+    latest.current = { fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchantLocationKey, onChange };
+  });
+
   const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
@@ -66,6 +84,28 @@ export function BusinessPoliciesSection({
       .then((json) => {
         if (cancelled) return;
         setData(json);
+
+        const current = latest.current;
+        const autoPatch: Parameters<typeof current.onChange>[0] = {};
+        const singleFulfillment = json.fulfillmentPolicies.length === 1 ? json.fulfillmentPolicies[0] : undefined;
+        if (!current.fulfillmentPolicyId && singleFulfillment) {
+          autoPatch.fulfillmentPolicyId = singleFulfillment.policyId;
+        }
+        const singlePayment = json.paymentPolicies.length === 1 ? json.paymentPolicies[0] : undefined;
+        if (!current.paymentPolicyId && singlePayment) {
+          autoPatch.paymentPolicyId = singlePayment.policyId;
+        }
+        const singleReturn = json.returnPolicies.length === 1 ? json.returnPolicies[0] : undefined;
+        if (!current.returnPolicyId && singleReturn) {
+          autoPatch.returnPolicyId = singleReturn.policyId;
+        }
+        const singleLocation = json.inventoryLocations.length === 1 ? json.inventoryLocations[0] : undefined;
+        if (!current.merchantLocationKey && singleLocation) {
+          autoPatch.merchantLocationKey = singleLocation.merchantLocationKey;
+        }
+        if (Object.keys(autoPatch).length > 0) {
+          current.onChange(autoPatch);
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -91,6 +131,7 @@ export function BusinessPoliciesSection({
       <p className="subnote">
         配送・支払い・返品ポリシー、および商品の発送元(保管場所)は、いずれもADMINが連携したeBayアカウント側の設定から選びます。
         アプリ側で新しいポリシーは作成できません(ポリシー自体はeBayの「Business Policies」画面で管理してください)。
+        各種類につき候補が1件しかない場合は自動的に選択されます(2件以上ある場合は手動で選んでください)。
       </p>
 
       {loading ? (
