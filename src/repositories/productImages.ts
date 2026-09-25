@@ -113,34 +113,36 @@ export async function listImagesWithUrls(productId: string): Promise<ProductImag
  * 2026-09-25の設計判断: eBayレガシーのTrading APIと異なり、Sell Inventory APIの
  * imageUrlsは「eBayが到達可能な公開HTTPS URL」であればよく、事前にEPS
  * (Picture Services)へアップロードしておく必要はない。そのためservices/ebay/media.ts
- * (Media API経由でEPS URLを取得するスタブ)は使わず、Supabase Storageの署名付きURLを
- * そのまま渡す。eBayはInventory Item作成時にこのURLを取得して自社側へ複製するため、
- * 署名URLの有効期限(24時間、通常のプレビュー用より長め)がPublish処理の実行時間を
- * 上回っていれば問題ない。
+ * (Media API経由でEPS URLを取得するスタブ)は使わない。
+ *
+ * 2026-09-25 追加修正: 当初はSupabase Storageの署名付きURLをそのまま渡していたが、
+ * eBay側にPictureURLの長さ制限(1件500文字以内、合計3975文字以内。errorId 25015で
+ * 実機確認済み)があり、署名付きURL(トークンを含む)はこれを簡単に超えてしまう。
+ * そこで、実際にeBayへ渡すのは自社アプリの短い固定パス
+ * (`/api/ebay-image/{product_images.id}`)にし、アクセス時にそちらが
+ * 署名付きURLへリダイレクトする方式に変更した(src/app/api/ebay-image/[imageId]/route.ts)。
  */
-const EBAY_IMAGE_URL_EXPIRY_SECONDS = 24 * 60 * 60;
+function getAppBaseUrl(): string {
+  const explicit = process.env.APP_BASE_URL;
+  if (explicit) return explicit.replace(/\/$/, '');
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+  return 'http://localhost:3000';
+}
 
 export async function getImageUrlsForEbay(productId: string, maxImages = 12): Promise<string[]> {
   const supabase = getSupabaseServerClient();
   const { data, error } = await supabase
     .from('product_images')
-    .select('original_path')
+    .select('id')
     .eq('product_id', productId)
     .order('is_primary', { ascending: false })
     .order('sort_order', { ascending: true })
     .limit(maxImages);
   if (error) throw error;
 
-  const urls: string[] = [];
-  for (const row of data ?? []) {
-    const path = row.original_path as string;
-    const { data: signed, error: signError } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(path, EBAY_IMAGE_URL_EXPIRY_SECONDS);
-    if (signError) throw signError;
-    if (signed?.signedUrl) urls.push(signed.signedUrl);
-  }
-  return urls;
+  const baseUrl = getAppBaseUrl();
+  return (data ?? []).map((row) => `${baseUrl}/api/ebay-image/${row.id as string}`);
 }
 
 const EXT_TO_MEDIA_TYPE: Record<string, string> = {

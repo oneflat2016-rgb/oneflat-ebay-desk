@@ -93,7 +93,8 @@ npm run dev
 - **価格・数量入力 + eBayへのPublish(§110 step11, §66-71, §76)**: `/listings/new` に新設した「価格・数量(eBay Offerに必須)」欄で価格・通貨・数量を入力し、一番下の「eBayへ出品する(Publish)」ボタンで実際にeBay Sandbox(または本番)へ出品できる。
   - `price` / `currency` / `quantity` を `ListingFormState` / `listing_drafts` に追加した(DB列自体は元々`schema.sql`に用意済みだったため追加マイグレーション不要)。
   - Publishボタンを押すと、まず現在の入力内容を保存(既存の「保存」と同じ処理)→ 必須項目(タイトル・カテゴリー・Condition・配送/支払い/返品ポリシー・保管場所・価格・数量・商品写真1枚以上)のバリデーション → `listing_drafts.status`を`PUBLISHING`へロック(§70: サーバー側で二重出品を防止、同じ下書きへ同時に2回Publishを押しても片方は拒否される)→ eBay Sell Inventory API(`PUT /inventory_item/{sku}` → `POST /offer` → `POST /offer/{offerId}/publish/`)を順に呼ぶ → 成功したら`listings`テーブル(公開後の正本)へ`ebay_listing_id`/`ebay_offer_id`を保存し、`listing_drafts.status`を`PUBLISHED`に変更 → `audit_logs`へ記録、という順序で処理する。
-  - 商品写真は、Supabase Storage(非公開バケット)の署名付きURL(有効期限24時間)をそのままeBayの`imageUrls`として渡す設計にした。eBayのレガシーTrading APIと異なり、Sell Inventory APIは事前にMedia API(EPS)へアップロードしておく必要がないため(`services/ebay/media.ts`のEPSスタブは現状未使用のまま)。
+  - 商品写真は、eBayの`imageUrls`に自社アプリの短いリダイレクトURL(`/api/ebay-image/{画像ID}`)を渡し、実際のアクセス時にSupabase Storage(非公開バケット)の署名付きURLへ302リダイレクトする方式にした(`src/app/api/ebay-image/[imageId]/route.ts`)。署名付きURLをそのまま渡すとeBay側のPictureURL文字数制限(1件500文字以内・合計3975文字以内、errorId 25015)を超えてしまうため。eBayのレガシーTrading APIと異なり、Sell Inventory APIは事前にMedia API(EPS)へアップロードしておく必要がないため(`services/ebay/media.ts`のEPSスタブは現状未使用のまま)。
+  - 本番URLが `oneflat-ebay-desk.vercel.app` と異なる独自ドメインになった場合は、環境変数 `APP_BASE_URL`(例: `https://your-domain.com`)を設定してください。未設定の場合はVercelが自動で設定する`VERCEL_URL`を使うため、通常は追加設定不要です。
   - eBay Metadata APIの`conditionId`(数値)は、Sell Inventory APIが要求する`ConditionEnum`文字列(例: `USED_EXCELLENT`)へ`src/lib/ebay/conditionEnumMap.ts`の対応表で変換する。未登録のconditionIdの場合はエラーにする(推測変換はしない、§117-4)。
   - Publish失敗時(eBay側のエラー・バリデーション失敗等)は`listing_drafts.status`を`FAILED`に戻し、再度Publishボタンを押せば最初からやり直せる(§71。`createOrReplaceInventoryItem`/`createOffer`は同じ内容なら再実行しても安全な設計)。
   - `audit_logs`テーブルは元々SELECTポリシーしかなかったため、INSERTポリシーを追加した(上記「今回追加で必要な作業」参照)。
