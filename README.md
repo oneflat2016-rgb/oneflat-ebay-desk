@@ -1,7 +1,7 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP6)
+# ONEFLAT eBay Listing Desk (Phase1-STEP7)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)** が完了している。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -46,8 +46,15 @@ npm run dev
   - ブランドが特定できない商品でも、商品種別(AI解析結果の`productType`など)で検索すればカテゴリーを絞り込める。
   - 候補は最大5件、eBayが返す順序をそのまま表示する(§37: 順序を並べ替えない)。
   - 選択した候補は `categoryTreeId` / `categoryId` / `categoryName` として `listing_drafts` に保存される(§117-2: カテゴリーはハードコードせず、必ずeBayの応答に由来する値のみを保存)。
-  - 旧来の自由入力欄(カテゴリー名を手打ちする欄)は引き続き残っており、次のstep7(動的Item Specifics)で置き換え・整理する予定。
+  - 旧来の自由入力欄(カテゴリー名を手打ちする欄)は引き続き残っており、動作確認が取れ次第整理する予定。
   - `EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET` 未設定時は501を返し、UIは自由入力欄への手入力継続を促す(§100)。
+- **動的Item Specifics(§110 step7, §39-42)**: `/listings/new` の「7. 商品仕様(Item Specifics・eBayカテゴリー連動)」から、1.5.で選んだeBayカテゴリーに対応する入力項目をeBay Taxonomy API(`get_item_aspects_for_category`)から取得して表示する。
+  - `GENRE_FIELDS`のようなジャンル固定配列は使わず、項目名・必須/推奨・選択候補はすべてeBayのレスポンスに由来する(§117-2)。
+  - eBay側で「候補値以外の入力を許さない」項目(SELECTION_ONLY)は、単一選択ならプルダウン、複数選択可(MULTI cardinality)ならチェックボックス一覧にする。それ以外(FREE_TEXT)はテキスト入力とし、候補があれば入力補助として表示する。
+  - 必須(REQUIRED)項目は「*必須」、推奨(RECOMMENDED)項目は「(推奨)」と表示するのみで、現時点では未入力でも保存をブロックしない(バリデーションの強制は出品(Publish)実装時, §66-71で行う予定)。
+  - 入力値は `listing_aspect_values` に保存される(`source: 'human'` 固定、eBayのaspect定義(required/usage/dataType/cardinality)も一緒に保存)。カテゴリーを選び直すと、別カテゴリーのAspect入力値は引き継がずクリアされる。
+  - eBayカテゴリー未選択の間、または`EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`未設定時は、この欄は空のまま案内文が表示される。
+  - 旧来の「7旧. 商品仕様(ジャンル固定・廃止予定)」セクション(`GENRE_FIELDS`ベース)は、この新しい動的版が本番で問題なく動くことを確認できるまで、引き続き併存させてある(step6のカテゴリー自由入力欄と同じ移行方針)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -83,10 +90,11 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-7. 動的Item Specifics(Metadata API) — ここで `GENRE_FIELDS` / `CATEGORY_PRESETS` を削除
-8. Condition取得(Metadata API)
-9. eBay OAuth
+8. Condition取得(Metadata API, `getItemConditionPolicies`)
+9. eBay OAuth(User Access Token, Authorization Code Grant)
 10. Business Policies / Inventory Location
+
+(7番の動的Item Specificsは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection`)を削除するクリーンアップを別途行う)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 

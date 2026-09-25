@@ -1,12 +1,15 @@
-import type { EbayCategory, EbayCategorySuggestion } from '@/types/ebay';
+import type { EbayAspectDefinition, EbayCategory, EbayCategorySuggestion } from '@/types/ebay';
 import { getEbayApiBaseUrl, getEbayAppAccessToken } from './auth';
 import { upsertCategoryCache } from '@/repositories/ebayCategoryCache';
+import { upsertAspectCache } from '@/repositories/ebayAspectCache';
 
 /**
- * §37-38(§110 step6): eBay Taxonomy API。
- * GET /api/ebay/categories/suggest?q= のバックエンド実装本体。
+ * §37-42(§110 step6-7): eBay Taxonomy API。
+ * GET /api/ebay/categories/suggest?q= (step6, カテゴリー候補) と
+ * GET /api/ebay/aspects?categoryTreeId=&categoryId= (step7, Item Specifics定義) の
+ * バックエンド実装本体。
  * 候補は最大5件、eBayが返す関連性順をそのまま使用する(§37)。
- * !!! カテゴリーをアプリへハードコードしないこと(§117-2) !!! — 値はすべてeBayのレスポンスに由来する。
+ * !!! カテゴリー/Aspectをアプリへハードコードしないこと(§117-2) !!! — 値はすべてeBayのレスポンスに由来する。
  */
 
 const MAX_SUGGESTIONS = 5;
@@ -101,4 +104,85 @@ export async function suggestCategories(params: {
   ).catch(() => undefined);
 
   return suggestions;
+}
+
+/**
+ * §39-42(§110 step7): eBay Taxonomy APIの get_item_aspects_for_category。
+ * 選択済みカテゴリー(categoryTreeId/categoryId)に対して、eBayが実際に要求/推奨する
+ * Item Specifics(Aspect)の一覧を取得する。GENRE_FIELDSのような固定配列は使わない(§40)。
+ */
+interface EbayAspectConstraintResponse {
+  aspectDataType?: string;
+  itemToAspectCardinality?: string;
+  aspectMode?: string;
+  aspectRequired?: boolean;
+  aspectUsage?: string;
+  expectedRequiredByDate?: string | null;
+}
+
+interface EbayAspectResponseItem {
+  localizedAspectName: string;
+  aspectConstraint?: EbayAspectConstraintResponse;
+  aspectValues?: { localizedValue: string }[];
+}
+
+function toAspectUsage(raw: string | undefined, required: boolean): EbayAspectDefinition['usage'] {
+  if (raw === 'REQUIRED' || raw === 'RECOMMENDED' || raw === 'OPTIONAL') return raw;
+  return required ? 'REQUIRED' : 'OPTIONAL';
+}
+
+function toAspectDataType(raw: string | undefined): EbayAspectDefinition['dataType'] {
+  if (raw === 'STRING' || raw === 'NUMBER' || raw === 'DATE' || raw === 'STRING_ARRAY') return raw;
+  return 'STRING';
+}
+
+function toAspectCardinality(raw: string | undefined): EbayAspectDefinition['cardinality'] {
+  return raw === 'MULTI' ? 'MULTI' : 'SINGLE';
+}
+
+function toAspectMode(raw: string | undefined): EbayAspectDefinition['aspectMode'] {
+  if (raw === 'FREE_TEXT' || raw === 'SELECTION_ONLY') return raw;
+  return null;
+}
+
+export async function getItemAspectsForCategory(params: {
+  marketplaceId: string;
+  categoryTreeId: string;
+  categoryId: string;
+}): Promise<EbayAspectDefinition[]> {
+  const { marketplaceId, categoryTreeId, categoryId } = params;
+
+  const res = await ebayFetch(
+    `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(
+      categoryTreeId,
+    )}/get_item_aspects_for_category?category_id=${encodeURIComponent(categoryId)}`,
+    marketplaceId,
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay Taxonomy API (get_item_aspects_for_category) failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as { aspects?: EbayAspectResponseItem[] };
+  const items = json.aspects ?? [];
+
+  const aspects: EbayAspectDefinition[] = items.map((item) => {
+    const constraint = item.aspectConstraint ?? {};
+    const required = constraint.aspectRequired ?? false;
+    const values = (item.aspectValues ?? []).map((v) => v.localizedValue).filter(Boolean);
+    return {
+      aspectName: item.localizedAspectName,
+      usage: toAspectUsage(constraint.aspectUsage, required),
+      required,
+      dataType: toAspectDataType(constraint.aspectDataType),
+      cardinality: toAspectCardinality(constraint.itemToAspectCardinality),
+      aspectMode: toAspectMode(constraint.aspectMode),
+      allowedValues: values.length > 0 ? values : null,
+      expectedRequiredByDate: constraint.expectedRequiredByDate ?? null,
+    };
+  });
+
+  // キャッシュへの書き込みは失敗してもレスポンスをブロックしない(ベストエフォート、§19-20)
+  upsertAspectCache(marketplaceId, categoryId, aspects).catch(() => undefined);
+
+  return aspects;
 }

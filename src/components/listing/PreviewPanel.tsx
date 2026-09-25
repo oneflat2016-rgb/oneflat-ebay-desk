@@ -44,7 +44,7 @@ export function PreviewPanel({ state }: { state: ListingFormState }) {
   const html = buildDescriptionHtml(state, false);
   const previewHtml = buildDescriptionHtml(state, true);
   const specificsText =
-    buildSpecificsText(state) || '(ジャンルを選択し、項目を入力するとここに表示されます)';
+    buildSpecificsText(state) || '(eBayカテゴリーを選択し、項目を入力するとここに表示されます)';
 
   const bundlePayload = [
     '[EBAY-DESK-DRAFT]',

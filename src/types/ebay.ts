@@ -21,12 +21,19 @@ export type EbayAspectDataType = 'STRING' | 'NUMBER' | 'DATE' | 'STRING_ARRAY';
 export type EbayAspectUsage = 'REQUIRED' | 'RECOMMENDED' | 'OPTIONAL';
 export type EbayAspectCardinality = 'SINGLE' | 'MULTI';
 
+export type EbayAspectMode = 'FREE_TEXT' | 'SELECTION_ONLY';
+
 export interface EbayAspectDefinition {
   aspectName: string;
   usage: EbayAspectUsage;
   required: boolean;
   dataType: EbayAspectDataType;
   cardinality: EbayAspectCardinality;
+  /**
+   * §42: SELECTION_ONLYの場合はallowedValuesから選ばせる(自由入力させない)。
+   * FREE_TEXTの場合、allowedValuesはよく使われる値の候補(入力補助)に過ぎない。
+   */
+  aspectMode: EbayAspectMode | null;
   allowedValues: string[] | null;
   expectedRequiredByDate: string | null;
 }

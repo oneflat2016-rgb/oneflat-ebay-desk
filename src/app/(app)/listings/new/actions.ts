@@ -6,6 +6,7 @@ import * as listingsRepo from '@/repositories/listings';
 import * as productImagesRepo from '@/repositories/productImages';
 import type { ListingFormState } from '@/types/listing';
 import type { ProductImageWithUrl } from '@/repositories/productImages';
+import type { EbayAspectDefinition } from '@/types/ebay';
 
 /**
  * §110 step3: products / listing_drafts のDB保存。
@@ -32,6 +33,7 @@ export interface SaveListingResult {
 export async function saveListingDraft(
   identity: SaveListingIdentity,
   state: ListingFormState,
+  ebayAspectDefinitions: EbayAspectDefinition[] = [],
 ): Promise<SaveListingResult> {
   const profile = await getCurrentProfile();
   if (!profile) {
@@ -110,6 +112,13 @@ export async function saveListingDraft(
     }
 
     await listingsRepo.upsertAspectValues(draftId, state.specifics);
+
+    // §39-42(§110 step7): eBay Taxonomy API由来のItem Specifics。
+    // 選択中カテゴリーのAspect定義(ebayAspectDefinitions)がまだ画面側で
+    // 取得できていない(=カテゴリー未選択、またはロード前)場合は何もしない。
+    if (ebayAspectDefinitions.length > 0) {
+      await listingsRepo.upsertEbayAspectValues(draftId, ebayAspectDefinitions, state.aspectValues);
+    }
 
     return {
       ok: true,
@@ -192,12 +201,14 @@ export async function loadListingDraft(draftId: string): Promise<{
   productPatch: Awaited<ReturnType<typeof productsRepo.getProductById>>;
   draft: Awaited<ReturnType<typeof listingsRepo.getDraftById>>;
   specifics: Record<string, string>;
+  aspectValues: Record<string, string[]>;
 } | null> {
   const draft = await listingsRepo.getDraftById(draftId);
   if (!draft) return null;
   const product = await productsRepo.getProductById(draft.productId);
   if (!product) return null;
   const specifics = await listingsRepo.getAspectValuesForDraft(draftId);
+  const aspectValues = await listingsRepo.getEbayAspectValuesForDraft(draftId);
 
   return {
     identity: {
@@ -209,5 +220,6 @@ export async function loadListingDraft(draftId: string): Promise<{
     productPatch: product,
     draft,
     specifics,
+    aspectValues,
   };
 }

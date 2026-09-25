@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import type { EbayAspectDefinition } from '@/types/ebay';
 
 /**
  * listing_drafts / listing_aspect_values のCRUD(Phase1-STEP3, §110 step3)。
@@ -176,6 +177,80 @@ export async function getAspectValuesForDraft(
   for (const row of data ?? []) {
     const valueJson = row.value_json as { value?: string } | null;
     if (valueJson?.value) result[row.aspect_name as string] = valueJson.value;
+  }
+  return result;
+}
+
+/**
+ * §39-42(§110 step7): eBay Taxonomy API由来のItem Specifics(Aspect)を
+ * listing_aspect_values に保存する。旧GENRE_FIELDS由来の upsertAspectValues とは
+ * value_jsonの形が異なる({value: string} ではなく {values: string[]}, MULTI対応)ため、
+ * aspect_nameが被らない限り同じテーブルに共存できる(§117-2: eBay由来の値のみ保存)。
+ * 入力が空の項目は削除する(空文字列だけを保持しない)。
+ */
+export async function upsertEbayAspectValues(
+  draftId: string,
+  aspects: EbayAspectDefinition[],
+  values: Record<string, string[]>,
+): Promise<void> {
+  const supabase = getSupabaseServerClient();
+
+  const toUpsert: { aspect: EbayAspectDefinition; values: string[] }[] = [];
+  const toDelete: string[] = [];
+
+  for (const aspect of aspects) {
+    const v = (values[aspect.aspectName] ?? []).map((s) => s.trim()).filter(Boolean);
+    if (v.length > 0) {
+      toUpsert.push({ aspect, values: v });
+    } else {
+      toDelete.push(aspect.aspectName);
+    }
+  }
+
+  if (toUpsert.length > 0) {
+    const rows = toUpsert.map(({ aspect, values: v }) => ({
+      listing_draft_id: draftId,
+      aspect_name: aspect.aspectName,
+      value_json: { values: v },
+      required: aspect.required,
+      usage: aspect.usage,
+      data_type: aspect.dataType,
+      cardinality: aspect.cardinality,
+      source: 'human',
+      confirmed: true,
+    }));
+    const { error } = await supabase
+      .from('listing_aspect_values')
+      .upsert(rows, { onConflict: 'listing_draft_id,aspect_name' });
+    if (error) throw error;
+  }
+
+  if (toDelete.length > 0) {
+    const { error } = await supabase
+      .from('listing_aspect_values')
+      .delete()
+      .eq('listing_draft_id', draftId)
+      .in('aspect_name', toDelete);
+    if (error) throw error;
+  }
+}
+
+export async function getEbayAspectValuesForDraft(
+  draftId: string,
+): Promise<Record<string, string[]>> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listing_aspect_values')
+    .select('aspect_name, value_json')
+    .eq('listing_draft_id', draftId);
+  if (error) throw error;
+
+  const result: Record<string, string[]> = {};
+  for (const row of data ?? []) {
+    const valueJson = row.value_json as { values?: string[] } | null;
+    if (valueJson?.values && valueJson.values.length > 0) {
+      result[row.aspect_name as string] = valueJson.values;
+    }
   }
   return result;
 }

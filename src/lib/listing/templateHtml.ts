@@ -161,14 +161,31 @@ export function currentGenreSpecifics(state: ListingFormState): SpecificsRow[] {
   return rows;
 }
 
+/**
+ * §39-42(§110 step7): eBay Taxonomy API由来のItem Specifics(state.aspectValues)。
+ * 旧ジャンル固定版(currentGenreSpecifics)と統合してプレビュー/説明文HTMLに表示する。
+ */
+function currentEbayAspectSpecifics(state: ListingFormState): SpecificsRow[] {
+  const rows: SpecificsRow[] = [];
+  for (const [aspectName, values] of Object.entries(state.aspectValues)) {
+    const v = values.filter((s) => s.trim() !== '');
+    if (v.length > 0) rows.push({ en: aspectName, value: v.join(', ') });
+  }
+  return rows;
+}
+
+function allSpecificsRows(state: ListingFormState): SpecificsRow[] {
+  return [...currentEbayAspectSpecifics(state), ...currentGenreSpecifics(state)];
+}
+
 export function buildSpecificsText(state: ListingFormState): string {
-  const rows = currentGenreSpecifics(state);
+  const rows = allSpecificsRows(state);
   if (!rows.length) return '';
   return rows.map((r) => `${r.en}: ${r.value}`).join('\n');
 }
 
 function buildSpecificsHtml(state: ListingFormState): string {
-  const rows = currentGenreSpecifics(state);
+  const rows = allSpecificsRows(state);
   if (!rows.length) return '';
   const rowsHtml = rows
     .map((r) => `<tr><td>${escapeHtml(r.en)}</td><td>${escapeHtml(r.value)}</td></tr>`)

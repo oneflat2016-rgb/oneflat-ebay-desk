@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from 'react';
 import type { ConditionValue, GenreKey, ListingFormState } from '@/types/listing';
+import type { EbayAspectDefinition } from '@/types/ebay';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
@@ -13,6 +14,7 @@ import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
 import { BilingualSection } from './BilingualSection';
 import { SpecificsSection } from './SpecificsSection';
+import { DynamicAspectsSection } from './DynamicAspectsSection';
 import { ChecklistSection } from './ChecklistSection';
 import { ColorTemplateSection } from './ColorTemplateSection';
 import { PreviewPanel } from './PreviewPanel';
@@ -48,6 +50,9 @@ export function ListingForm({
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: 'idle' });
   const [isSaving, startSaveTransition] = useTransition();
+  // §39-42(§110 step7): 現在のカテゴリーに対応するeBay Aspect定義。
+  // 保存時にstate.aspectValuesと突き合わせてrequired/usage/dataTypeを一緒に保存するために保持する。
+  const [ebayAspects, setEbayAspects] = useState<EbayAspectDefinition[]>([]);
 
   const patch = useCallback((partial: Partial<ListingFormState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -68,6 +73,10 @@ export function ListingForm({
     setState((prev) => ({ ...prev, specifics: { ...prev.specifics, [key]: value } }));
   }
 
+  function handleAspectValueChange(aspectName: string, values: string[]) {
+    setState((prev) => ({ ...prev, aspectValues: { ...prev.aspectValues, [aspectName]: values } }));
+  }
+
   function handleChecklistToggle(id: string) {
     setState((prev) => ({
       ...prev,
@@ -84,7 +93,7 @@ export function ListingForm({
   function handleSave() {
     setSaveStatus({ kind: 'saving' });
     startSaveTransition(async () => {
-      const result = await saveListingDraft(identity, state);
+      const result = await saveListingDraft(identity, state, ebayAspects);
       if (!result.ok) {
         if (result.conflict) {
           setSaveStatus({ kind: 'conflict', target: result.conflict });
@@ -147,9 +156,28 @@ export function ListingForm({
           categoryId={state.categoryId}
           categoryName={state.categoryName}
           defaultQuery={[state.model, state.brand].filter(Boolean).join(' ')}
-          onSelect={({ categoryTreeId, categoryId, categoryName }) =>
-            patch({ categoryTreeId, categoryId, categoryName, category: categoryName })
-          }
+          onSelect={({ categoryTreeId, categoryId, categoryName }) => {
+            // カテゴリーが変わったら、旧カテゴリーのAspect定義・入力値をクリアする
+            // (別カテゴリーのAspectを引き継がないため、§117-2)。
+            setEbayAspects([]);
+            setState((prev) => ({
+              ...prev,
+              categoryTreeId,
+              categoryId,
+              categoryName,
+              category: categoryName,
+              aspectValues: {},
+            }));
+          }}
+        />
+
+        <DynamicAspectsSection
+          categoryTreeId={state.categoryTreeId}
+          categoryId={state.categoryId}
+          categoryName={state.categoryName}
+          values={state.aspectValues}
+          onChange={handleAspectValueChange}
+          onAspectsLoaded={setEbayAspects}
         />
 
         <ConditionSection

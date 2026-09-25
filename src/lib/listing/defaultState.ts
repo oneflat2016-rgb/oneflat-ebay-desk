@@ -34,6 +34,7 @@ export function createSampleListingFormState(): ListingFormState {
       en: 'This listing includes the chisel only. The blade sheath (saya) and sharpening stone are not included.',
     },
     specifics: {},
+    aspectValues: {},
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };
@@ -57,6 +58,7 @@ export function createEmptyListingFormState(): ListingFormState {
     conditionDetail: { ja: '', en: '' },
     includedItems: { ja: '', en: '' },
     specifics: {},
+    aspectValues: {},
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };

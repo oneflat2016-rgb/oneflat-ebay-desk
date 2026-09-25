@@ -78,7 +78,14 @@ export interface ListingFormState {
   conditionDetail: BilingualText;
   includedItems: BilingualText;
 
-  specifics: Record<string, string>; // key: `${genre}-${fieldId}`
+  specifics: Record<string, string>; // key: `${genre}-${fieldId}` (§40でREMOVE予定の暫定項目)
+
+  /**
+   * §39-42(§110 step7): eBay Taxonomy APIから取得したItem Specifics(Aspect)の入力値。
+   * key: eBayのaspectName(例: "Brand")。value: 入力値の配列(MULTI cardinality対応)。
+   * categoryTreeId/categoryIdが未選択の間は使われない(旧specificsとの併用期間、§117-2)。
+   */
+  aspectValues: Record<string, string[]>;
 
   checklist: ChecklistState;
 
