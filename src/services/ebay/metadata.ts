@@ -47,11 +47,26 @@ export async function getConditionPoliciesForCategory(params: {
     throw new Error(`eBay Metadata API (get_item_condition_policies) failed (${res.status}): ${body}`);
   }
   const json = (await res.json()) as { itemConditionPolicies?: EbayItemConditionPolicyResponseItem[] };
-  const policy = (json.itemConditionPolicies ?? []).find((p) => p.categoryId === categoryId);
+  const policies = json.itemConditionPolicies ?? [];
+  // §102: categoryIdの型がstring/number両方あり得るため文字列化して比較する(取りこぼし防止)。
+  const policy = policies.find((p) => String(p.categoryId) === String(categoryId));
   const conditions: EbayConditionPolicy[] = (policy?.conditionValues ?? []).map((c) => ({
     conditionId: c.conditionId,
     conditionDescription: c.conditionDescription,
   }));
+
+  if (conditions.length === 0) {
+    // 診断用ログ: eBayが実際に何を返したかVercelログで確認できるようにする(§102: Secretは含めない)。
+    console.warn(
+      '[getConditionPoliciesForCategory] no conditions resolved',
+      JSON.stringify({
+        marketplaceId,
+        requestedCategoryId: categoryId,
+        returnedCategoryIds: policies.map((p) => p.categoryId),
+        rawPolicyCount: policies.length,
+      }),
+    );
+  }
 
   // キャッシュへの書き込みは失敗してもレスポンスをブロックしない(ベストエフォート、§19-20)
   upsertConditionPolicyCache(marketplaceId, categoryId, conditions).catch(() => undefined);
