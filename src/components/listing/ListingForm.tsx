@@ -12,6 +12,7 @@ import { CategorySuggestSection } from './CategorySuggestSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
+import { DynamicConditionSection } from './DynamicConditionSection';
 import { BilingualSection } from './BilingualSection';
 import { SpecificsSection } from './SpecificsSection';
 import { DynamicAspectsSection } from './DynamicAspectsSection';
@@ -157,8 +158,8 @@ export function ListingForm({
           categoryName={state.categoryName}
           defaultQuery={[state.model, state.brand].filter(Boolean).join(' ')}
           onSelect={({ categoryTreeId, categoryId, categoryName }) => {
-            // カテゴリーが変わったら、旧カテゴリーのAspect定義・入力値をクリアする
-            // (別カテゴリーのAspectを引き継がないため、§117-2)。
+            // カテゴリーが変わったら、旧カテゴリーのAspect/Condition定義・入力値をクリアする
+            // (別カテゴリーの値を引き継がないため、§117-2/§117-4)。
             setEbayAspects([]);
             setState((prev) => ({
               ...prev,
@@ -167,6 +168,8 @@ export function ListingForm({
               categoryName,
               category: categoryName,
               aspectValues: {},
+              ebayConditionId: null,
+              ebayConditionDescription: null,
             }));
           }}
         />
@@ -178,6 +181,14 @@ export function ListingForm({
           values={state.aspectValues}
           onChange={handleAspectValueChange}
           onAspectsLoaded={setEbayAspects}
+        />
+
+        <DynamicConditionSection
+          categoryId={state.categoryId}
+          conditionId={state.ebayConditionId}
+          onSelect={({ conditionId, conditionDescription }) =>
+            patch({ ebayConditionId: conditionId, ebayConditionDescription: conditionDescription })
+          }
         />
 
         <ConditionSection

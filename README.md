@@ -1,7 +1,11 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP7)
+# ONEFLAT eBay Listing Desk (Phase1-STEP8)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)** が完了している。
+
+### ⚠️ 今回追加でSupabase側の作業が必要です
+
+`supabase/condition_cache.sql` を**新たに実行する必要があります**(`storage.sql`と同じ位置づけの追加ファイルです)。SupabaseダッシュボードのSQL Editorで、このファイルの中身を貼り付けて実行してください。
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -55,6 +59,12 @@ npm run dev
   - 入力値は `listing_aspect_values` に保存される(`source: 'human'` 固定、eBayのaspect定義(required/usage/dataType/cardinality)も一緒に保存)。カテゴリーを選び直すと、別カテゴリーのAspect入力値は引き継がずクリアされる。
   - eBayカテゴリー未選択の間、または`EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`未設定時は、この欄は空のまま案内文が表示される。
   - 旧来の「7旧. 商品仕様(ジャンル固定・廃止予定)」セクション(`GENRE_FIELDS`ベース)は、この新しい動的版が本番で問題なく動くことを確認できるまで、引き続き併存させてある(step6のカテゴリー自由入力欄と同じ移行方針)。
+- **動的Condition(§110 step8, §43)**: `/listings/new` の「2. eBayの状態(Item Condition・eBayカテゴリー連動)」から、1.5.で選んだeBayカテゴリーで実際に選択可能なCondition一覧をeBay Metadata API(`get_item_condition_policies`)から取得して表示する。
+  - 固定6択(New/Used-Excellent等)は使わず、選択肢(conditionId・表示名とも)はすべてeBayのレスポンスに由来する(§117-3/§117-4)。
+  - 選択結果は `listing_drafts.condition_id`(eBayのconditionId)・`condition_enum`(eBayのconditionDescription)として保存される。カテゴリーを選び直すと選択済みConditionはクリアされる。
+  - キャッシュ用に `ebay_condition_cache` テーブルを追加した。**既存プロジェクトでは `supabase/condition_cache.sql` を別途実行する必要がある**(`storage.sql`と同じ位置づけ)。
+  - 旧来の「2旧. eBayの状態(固定6択・廃止予定)」セクションは、タイトル候補生成(`titleSuggestions.ts`)がまだこの固定Conditionに依存しているため、そちらの移行と合わせて削除する予定。それまでは両方とも表示される(どちらを選んでも構わないが、実際にeBayへ出品する際の正本は新しい方)。
+  - eBayカテゴリー未選択の間、または`EBAY_CLIENT_ID`/`EBAY_CLIENT_SECRET`未設定時は、この欄は空のまま案内文が表示される。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -90,9 +100,10 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-8. Condition取得(Metadata API, `getItemConditionPolicies`)
 9. eBay OAuth(User Access Token, Authorization Code Grant)
 10. Business Policies / Inventory Location
+
+(7番の動的Item Specifics、8番の動的Conditionは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
 (7番の動的Item Specificsは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection`)を削除するクリーンアップを別途行う)
 

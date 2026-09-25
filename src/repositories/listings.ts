@@ -17,6 +17,8 @@ export interface ListingDraftRecord {
   categoryTreeId: string | null;
   categoryId: string | null;
   categoryName: string | null;
+  /** §43(§110 step8): eBay Metadata APIが返す実際のconditionId(数値ID) */
+  conditionId: string | null;
   conditionEnum: string | null;
   title: string | null;
   status: 'DRAFT' | 'READY' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
@@ -31,6 +33,7 @@ export interface ListingDraftPatch {
   categoryTreeId?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
+  conditionId?: string | null;
   conditionEnum?: string | null;
   title?: string | null;
   updatedBy?: string;
@@ -44,6 +47,7 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
     categoryTreeId: (row.category_tree_id as string | null) ?? null,
     categoryId: (row.category_id as string | null) ?? null,
     categoryName: (row.category_name as string | null) ?? null,
+    conditionId: (row.condition_id as string | null) ?? null,
     conditionEnum: (row.condition_enum as string | null) ?? null,
     title: (row.title as string | null) ?? null,
     status: row.status as ListingDraftRecord['status'],
@@ -60,6 +64,7 @@ function patchToRow(patch: ListingDraftPatch): Record<string, unknown> {
   if ('categoryTreeId' in patch) row.category_tree_id = patch.categoryTreeId;
   if ('categoryId' in patch) row.category_id = patch.categoryId;
   if ('categoryName' in patch) row.category_name = patch.categoryName;
+  if ('conditionId' in patch) row.condition_id = patch.conditionId;
   if ('conditionEnum' in patch) row.condition_enum = patch.conditionEnum;
   if ('title' in patch) row.title = patch.title;
   if ('updatedBy' in patch) row.updated_by = patch.updatedBy;

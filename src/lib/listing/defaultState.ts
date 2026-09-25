@@ -17,6 +17,8 @@ export function createSampleListingFormState(): ListingFormState {
     categoryId: null,
     categoryName: null,
     condition: 'Used – Excellent',
+    ebayConditionId: null,
+    ebayConditionDescription: null,
     about: {
       ja: '職人が使用していた鑿(ノミ)です。刃には大きな欠けはなく、研ぎ直せばすぐに使えます。当店は海外バイヤー様への発送実績が豊富ですので、安心してご購入いただけます。',
       en: 'This is a chisel (nomi) that was used by a professional carpenter. The blade has no major chips and is ready to use again after sharpening. We have a strong track record shipping to international buyers, so please purchase with confidence.',
@@ -53,6 +55,8 @@ export function createEmptyListingFormState(): ListingFormState {
     categoryId: null,
     categoryName: null,
     condition: 'Used – Excellent',
+    ebayConditionId: null,
+    ebayConditionDescription: null,
     about: { ja: '', en: '' },
     appearance: { ja: '', en: '' },
     conditionDetail: { ja: '', en: '' },

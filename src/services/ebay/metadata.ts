@@ -1,22 +1,60 @@
-import type { EbayAspectDefinition, EbayConditionPolicy } from '@/types/ebay';
+import type { EbayConditionPolicy } from '@/types/ebay';
+import { getEbayApiBaseUrl, getEbayAppAccessToken } from './auth';
+import { upsertConditionPolicyCache } from '@/repositories/ebayConditionCache';
 
 /**
- * TODO(§39, §43): 実装対象。eBay Metadata API。
- * - getItemAspectsForCategory(categoryTreeId, categoryId) → 動的Item Specifics(§39-42)
- * - getItemConditionPolicies(categoryId) → カテゴリーごとのCondition一覧(§43)
- * !!! Item Specificsを固定配列として持たないこと(§117-3) !!!
- * !!! ClaudeにカテゴリーやConditionを独自定義させないこと(§117-4) !!!
+ * §43(§110 step8): eBay Metadata API(Sell APIの/sell/metadata/v1/...)。
+ * get_item_condition_policies(categoryId) → カテゴリーごとのCondition一覧。
+ * !!! Conditionを固定配列として持たないこと(§117-3) !!!
+ * !!! アプリやClaudeが独自にConditionの区分を作らないこと(§117-4) !!!
+ *
+ * 注意: eBay Item Aspects(動的Item Specifics, §39-42)はTaxonomy APIの
+ * get_item_aspects_for_categoryであり、こちらのMetadata APIとは別エンドポイント
+ * なのでservices/ebay/taxonomy.ts(getItemAspectsForCategory)に実装済み。
  */
-export async function getAspectsForCategory(_params: {
-  marketplaceId: string;
-  categoryId: string;
-}): Promise<EbayAspectDefinition[]> {
-  throw new Error('getAspectsForCategory is not implemented yet (§39-42)');
+
+interface EbayConditionValueResponseItem {
+  conditionId: string;
+  conditionDescription: string;
 }
 
-export async function getConditionPoliciesForCategory(_params: {
+interface EbayItemConditionPolicyResponseItem {
+  categoryId: string;
+  itemConditionRequired?: boolean;
+  conditionValues?: EbayConditionValueResponseItem[];
+}
+
+export async function getConditionPoliciesForCategory(params: {
   marketplaceId: string;
   categoryId: string;
 }): Promise<EbayConditionPolicy[]> {
-  throw new Error('getConditionPoliciesForCategory is not implemented yet (§43)');
+  const { marketplaceId, categoryId } = params;
+  const token = await getEbayAppAccessToken();
+
+  const res = await fetch(
+    `${getEbayApiBaseUrl()}/sell/metadata/v1/marketplace/${encodeURIComponent(
+      marketplaceId,
+    )}/get_item_condition_policies?filter=${encodeURIComponent(`categoryIds:{${categoryId}}`)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`eBay Metadata API (get_item_condition_policies) failed (${res.status}): ${body}`);
+  }
+  const json = (await res.json()) as { itemConditionPolicies?: EbayItemConditionPolicyResponseItem[] };
+  const policy = (json.itemConditionPolicies ?? []).find((p) => p.categoryId === categoryId);
+  const conditions: EbayConditionPolicy[] = (policy?.conditionValues ?? []).map((c) => ({
+    conditionId: c.conditionId,
+    conditionDescription: c.conditionDescription,
+  }));
+
+  // キャッシュへの書き込みは失敗してもレスポンスをブロックしない(ベストエフォート、§19-20)
+  upsertConditionPolicyCache(marketplaceId, categoryId, conditions).catch(() => undefined);
+
+  return conditions;
 }

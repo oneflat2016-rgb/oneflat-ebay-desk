@@ -71,7 +71,16 @@ export interface ListingFormState {
   categoryId: string | null;
   categoryName: string | null;
 
-  condition: ConditionValue;
+  condition: ConditionValue; // §40/§43でREMOVE予定の固定6択(暫定)
+
+  /**
+   * §43(§110 step8): eBay Metadata APIから選択した実カテゴリーのCondition。
+   * 未選択の間はnull(旧`condition`固定6択との併用期間)。
+   * §117-3/§117-4: Conditionをアプリへハードコード・独自定義しないため、
+   * 値は必ずeBay APIの応答(conditionId/conditionDescription)から来る。
+   */
+  ebayConditionId: string | null;
+  ebayConditionDescription: string | null;
 
   about: BilingualText;
   appearance: BilingualText;

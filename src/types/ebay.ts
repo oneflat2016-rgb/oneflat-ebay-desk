@@ -38,9 +38,14 @@ export interface EbayAspectDefinition {
   expectedRequiredByDate: string | null;
 }
 
+/**
+ * §43(§110 step8): eBay Metadata API(get_item_condition_policies)が
+ * 選択済みカテゴリーに対して返す、実際に使用可能なCondition一覧。
+ * conditionIdはeBayのレガシーな数値ID(例: 1000=New, 3000=Used等)で、
+ * カテゴリーによって使用可能な値が異なる(§117-4: Claudeやアプリ側で独自定義しない)。
+ */
 export interface EbayConditionPolicy {
   conditionId: string;
-  conditionEnum: string;
   conditionDescription: string;
 }
 

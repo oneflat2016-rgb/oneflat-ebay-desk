@@ -270,6 +270,20 @@ create table if not exists ebay_aspect_cache (
   primary key (marketplace_id, category_id, aspect_name)
 );
 
+-- §110 step8: eBay Metadata API(get_item_condition_policies)の結果キャッシュ。
+-- 既存プロジェクトへは condition_cache.sql を別途実行してください。
+create table if not exists ebay_condition_cache (
+  marketplace_id text not null,
+  category_id text not null,
+
+  condition_id text not null,
+  condition_description text not null,
+
+  updated_at timestamptz not null default now(),
+
+  primary key (marketplace_id, category_id, condition_id)
+);
+
 -- ============================================================
 -- §21-22 orders / order_items (Phase2)
 -- ============================================================

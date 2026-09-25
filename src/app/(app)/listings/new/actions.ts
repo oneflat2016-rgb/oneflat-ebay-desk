@@ -83,7 +83,11 @@ export async function saveListingDraft(
       categoryTreeId: state.categoryTreeId,
       categoryId: state.categoryId,
       categoryName: state.categoryName ?? (state.category || null),
-      conditionEnum: state.condition || null,
+      // §43(§110 step8): eBay Metadata API由来のConditionを優先保存する。
+      // 未選択の間(旧固定6択のみ入力済みの場合)はconditionEnumに旧値をフォールバックする
+      // (併用期間中、§117-4: eBay由来でない値をconditionIdへは入れない)。
+      conditionId: state.ebayConditionId,
+      conditionEnum: state.ebayConditionDescription ?? (state.condition || null),
       title: state.title || null,
       updatedBy: profile.id,
     };

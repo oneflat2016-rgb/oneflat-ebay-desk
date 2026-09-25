@@ -3,9 +3,11 @@
 import { CONDITION_OPTIONS, type ConditionValue } from '@/types/listing';
 
 /**
- * TODO(§43): 固定Condition一覧はREMOVE予定。
- * eBay Metadata API の getItemConditionPolicies(categoryId)から
- * カテゴリーごとの利用可能Condition一覧を動的取得する方式に置き換える。
+ * !!! REMOVE予定(§43, §116) !!!
+ * §110 step8でDynamicConditionSection(eBay Metadata APIの動的Condition)を追加した。
+ * こちらの固定6択版は、新しい方が本番で問題なく動くことを確認できたら削除する
+ * (step6/7と同じ移行方針)。titleSuggestions.ts(タイトル候補生成)がまだ
+ * このConditionValueに依存しているため、そちらの移行と合わせて削除する。
  */
 export function ConditionSection({
   condition,
@@ -17,8 +19,8 @@ export function ConditionSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2>2. eBayの状態(Item Condition)</h2>
-        <span className="hint">出品フォーム用・任意</span>
+        <h2>2旧. eBayの状態(固定6択・廃止予定)</h2>
+        <span className="hint">タイトル候補生成にのみ使用</span>
       </div>
       <p className="subnote">
         お客様に実際にお届けする商品の状態を選びます。eBayの出品フォームにある「Condition」の区分と同じものです。
