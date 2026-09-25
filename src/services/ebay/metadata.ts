@@ -21,7 +21,9 @@ interface EbayConditionValueResponseItem {
 interface EbayItemConditionPolicyResponseItem {
   categoryId: string;
   itemConditionRequired?: boolean;
-  conditionValues?: EbayConditionValueResponseItem[];
+  // 注意: eBayの実際のレスポンスは"conditionValues"ではなく"itemConditions"というフィールド名で返る
+  // (公開ドキュメントの記載と異なる。実際のログで確認済み、2026-09-25)。
+  itemConditions?: EbayConditionValueResponseItem[];
 }
 
 export async function getConditionPoliciesForCategory(params: {
@@ -50,25 +52,10 @@ export async function getConditionPoliciesForCategory(params: {
   const policies = json.itemConditionPolicies ?? [];
   // §102: categoryIdの型がstring/number両方あり得るため文字列化して比較する(取りこぼし防止)。
   const policy = policies.find((p) => String(p.categoryId) === String(categoryId));
-  const conditions: EbayConditionPolicy[] = (policy?.conditionValues ?? []).map((c) => ({
+  const conditions: EbayConditionPolicy[] = (policy?.itemConditions ?? []).map((c) => ({
     conditionId: c.conditionId,
     conditionDescription: c.conditionDescription,
   }));
-
-  if (conditions.length === 0) {
-    // 診断用ログ: eBayが実際に何を返したかVercelログで確認できるようにする(§102: Secretは含めない)。
-    // マッチしたpolicy自体を丸ごと出力し、フィールド名の想定違いか、
-    // eBay側(Sandboxのデータが疎な場合がある)の空応答かを切り分ける。
-    console.warn(
-      '[getConditionPoliciesForCategory] no conditions resolved',
-      JSON.stringify({
-        marketplaceId,
-        requestedCategoryId: categoryId,
-        rawPolicyCount: policies.length,
-        matchedPolicyRaw: policy ?? null,
-      }),
-    );
-  }
 
   // キャッシュへの書き込みは失敗してもレスポンスをブロックしない(ベストエフォート、§19-20)
   upsertConditionPolicyCache(marketplaceId, categoryId, conditions).catch(() => undefined);
