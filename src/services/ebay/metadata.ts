@@ -57,13 +57,15 @@ export async function getConditionPoliciesForCategory(params: {
 
   if (conditions.length === 0) {
     // 診断用ログ: eBayが実際に何を返したかVercelログで確認できるようにする(§102: Secretは含めない)。
+    // マッチしたpolicy自体を丸ごと出力し、フィールド名の想定違いか、
+    // eBay側(Sandboxのデータが疎な場合がある)の空応答かを切り分ける。
     console.warn(
       '[getConditionPoliciesForCategory] no conditions resolved',
       JSON.stringify({
         marketplaceId,
         requestedCategoryId: categoryId,
-        returnedCategoryIds: policies.map((p) => p.categoryId),
         rawPolicyCount: policies.length,
+        matchedPolicyRaw: policy ?? null,
       }),
     );
   }
