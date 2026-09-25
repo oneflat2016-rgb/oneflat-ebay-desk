@@ -1,5 +1,6 @@
 import { ListingForm } from '@/components/listing/ListingForm';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
+import { getCurrentProfile } from '@/lib/auth/getCurrentProfile';
 
 /**
  * TODO(§30-31): これは旧ebay-listing-desk.htmlの単一フォームをそのまま移植した
@@ -9,8 +10,10 @@ import { createEmptyListingFormState } from '@/lib/listing/defaultState';
  * /loginへリダイレクト)。「保存」ボタンでproducts/listing_draftsへ実際に
  * 保存されるようになったため、サンプルデータではなく空の状態から始める。
  */
-export default function NewListingPage() {
+export default async function NewListingPage() {
   const initialState = createEmptyListingFormState();
+  const profile = await getCurrentProfile();
+  const isAdmin = profile?.role === 'ADMIN';
   return (
     <main>
       <header className="page" style={{ marginBottom: 26, paddingBottom: 18, borderBottom: '2px solid var(--line-strong)' }}>
@@ -24,7 +27,7 @@ export default function NewListingPage() {
           </p>
         </div>
       </header>
-      <ListingForm initialState={initialState} />
+      <ListingForm initialState={initialState} isAdmin={isAdmin} />
     </main>
   );
 }

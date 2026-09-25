@@ -49,19 +49,34 @@ export interface EbayConditionPolicy {
   conditionDescription: string;
 }
 
+/**
+ * §110 step10: eBay Sell Account API(fulfillment_policy/payment_policy/return_policy)
+ * が返すBusiness Policy一覧。§117-4と同様、名前やIDをアプリ側で作らず必ずeBayの応答を使う。
+ * このAPIを呼ぶにはADMINが§9で連携済みであること(User Access Token)が前提(Application
+ * Access Tokenでは取得できない、出品者本人のデータのため)。
+ */
+export type EbayBusinessPolicyType = 'FULFILLMENT' | 'PAYMENT' | 'RETURN';
+
 export interface EbayBusinessPolicy {
+  type: EbayBusinessPolicyType;
   policyId: string;
   name: string;
-  description?: string;
+  marketplaceId: string;
 }
 
 export interface EbayMarketplaceId {
   value: 'EBAY_US' | 'EBAY_UK' | 'EBAY_AU' | string;
 }
 
+/**
+ * §110 step10: eBay Inventory API(location)が返す出荷元情報。
+ * 出品(Inventory Item/Offer作成)には最低1件のENABLEDなLocationが必須。
+ */
 export interface EbayInventoryLocation {
   merchantLocationKey: string;
-  name: string;
+  name: string | null;
+  locationStatus: string;
+  city: string | null;
 }
 
 export interface EbayPublishResult {

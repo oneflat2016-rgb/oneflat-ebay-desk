@@ -96,6 +96,16 @@ export interface ListingFormState {
    */
   aspectValues: Record<string, string[]>;
 
+  /**
+   * §110 step10: eBay Sell Account API / Inventory APIから取得したBusiness Policies・
+   * 保管場所の選択値。名前(表示用)はDBへ保存せず、画面表示のたびにIDから解決する
+   * (§117-4: eBay由来でない値を保存しない。名前だけの古いキャッシュを持たせない)。
+   */
+  fulfillmentPolicyId: string | null;
+  paymentPolicyId: string | null;
+  returnPolicyId: string | null;
+  merchantLocationKey: string | null;
+
   checklist: ChecklistState;
 
   templateColors: TemplateColors;

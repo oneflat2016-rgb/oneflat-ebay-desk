@@ -13,6 +13,7 @@ import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { ConditionSection } from './ConditionSection';
 import { DynamicConditionSection } from './DynamicConditionSection';
+import { BusinessPoliciesSection } from './BusinessPoliciesSection';
 import { BilingualSection } from './BilingualSection';
 import { SpecificsSection } from './SpecificsSection';
 import { DynamicAspectsSection } from './DynamicAspectsSection';
@@ -41,9 +42,11 @@ type SaveStatus =
 export function ListingForm({
   initialState,
   initialIdentity,
+  isAdmin = false,
 }: {
   initialState: ListingFormState;
   initialIdentity?: SaveListingIdentity;
+  isAdmin?: boolean;
 }) {
   const [state, setState] = useState<ListingFormState>(initialState);
   const [identity, setIdentity] = useState<SaveListingIdentity>(
@@ -194,6 +197,15 @@ export function ListingForm({
         <ConditionSection
           condition={state.condition}
           onChange={(condition: ConditionValue) => patch({ condition })}
+        />
+
+        <BusinessPoliciesSection
+          fulfillmentPolicyId={state.fulfillmentPolicyId}
+          paymentPolicyId={state.paymentPolicyId}
+          returnPolicyId={state.returnPolicyId}
+          merchantLocationKey={state.merchantLocationKey}
+          isAdmin={isAdmin}
+          onChange={(patchValue) => patch(patchValue)}
         />
 
         <BilingualSection

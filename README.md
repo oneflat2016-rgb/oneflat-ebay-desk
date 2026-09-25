@@ -1,7 +1,7 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP9)
+# ONEFLAT eBay Listing Desk (Phase1-STEP10)
 
 指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)** が完了している。
+現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)・10番(Business Policies / Inventory Locationの取得・選択)** が完了している。
 
 ### ⚠️ 今回追加で必要な作業(Supabase側SQL + Vercel環境変数 + eBay Developer Portal設定)
 
@@ -76,6 +76,13 @@ npm run dev
   - `/settings`から連携解除も可能(このアプリ側の記録を消すだけで、eBay側の許可自体は取り消さない旨を画面に案内している)。
   - `EBAY_CLIENT_ID` / `EBAY_CLIENT_SECRET` / `EBAY_REDIRECT_URI` のいずれか未設定の場合は、連携ボタンの代わりに未設定である旨を表示する。
   - `ebay_accounts`テーブルは1組織につき1アカウントを想定し、`organization_id`に一意制約を追加した。**既存プロジェクトでは`supabase/ebay_accounts_unique.sql`を別途実行する必要がある**。
+- **Business Policies / Inventory Location(§110 step10)**: `/listings/new` の「9. eBay Business Policies・保管場所」から、配送/支払い/返品ポリシーと発送元(保管場所)を選択できる。
+  - eBay Sell Account API(`fulfillment_policy` / `payment_policy` / `return_policy`)・Sell Inventory API(`location`)を、ADMINが連携済みのUser Access Token(§9)で呼び出す。Application Access Tokenでは取得できない出品者本人のデータのため。
+  - 選択肢は必ずeBayのレスポンスから作る(§117-4)。ポリシー自体の新規作成はこのアプリからはできない(eBay側の「Business Policies」画面で作成する必要がある。eBayアカウントでBusiness Policiesプログラムへのopt-inが済んでいない場合はポリシーが0件になるため、その旨をUIに表示する)。
+  - Inventory Location(保管場所)はこのアプリからADMINのみ新規登録できる(`POST /api/ebay/inventory-locations`、eBayアカウントへの書き込みを伴うため)。
+  - 選択結果は `listing_drafts.fulfillment_policy_id` / `payment_policy_id` / `return_policy_id` / `merchant_location_key` として保存される(これらの列は元々`schema.sql`に用意済みだったため、追加のDBマイグレーションは不要)。
+  - eBayアカウント未連携(§9未実施)の場合は、`/settings`で連携するよう案内が表示される。
+  - 実際にこれらのID(Policy ID / Location Key)を使ってInventory Item・Offerを作成し出品する処理(Publish本体)はstep11以降で実装する。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -113,9 +120,9 @@ npm run dev
 
 ## 次に実装するもの(指示書§110の順序)
 
-10. Business Policies / Inventory Location(§66以降のPublish実装に向けた前提データ)
+11. Inventory Item / Offer の作成・実際のeBayへのPublish(§66-71)
 
-(7番の動的Item Specifics、8番の動的Condition、9番のeBay OAuthは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
+(7番の動的Item Specifics、8番の動的Condition、9番のeBay OAuth、10番のBusiness Policies/Inventory Locationは完了。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 

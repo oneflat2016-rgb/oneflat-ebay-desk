@@ -88,6 +88,11 @@ export async function saveListingDraft(
       // (併用期間中、§117-4: eBay由来でない値をconditionIdへは入れない)。
       conditionId: state.ebayConditionId,
       conditionEnum: state.ebayConditionDescription ?? (state.condition || null),
+      // §110 step10: Business Policies / 保管場所(いずれもeBay APIの応答IDをそのまま保存する)
+      fulfillmentPolicyId: state.fulfillmentPolicyId,
+      paymentPolicyId: state.paymentPolicyId,
+      returnPolicyId: state.returnPolicyId,
+      merchantLocationKey: state.merchantLocationKey,
       title: state.title || null,
       updatedBy: profile.id,
     };

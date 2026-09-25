@@ -37,6 +37,10 @@ export function createSampleListingFormState(): ListingFormState {
     },
     specifics: {},
     aspectValues: {},
+    fulfillmentPolicyId: null,
+    paymentPolicyId: null,
+    returnPolicyId: null,
+    merchantLocationKey: null,
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };
@@ -63,6 +67,10 @@ export function createEmptyListingFormState(): ListingFormState {
     includedItems: { ja: '', en: '' },
     specifics: {},
     aspectValues: {},
+    fulfillmentPolicyId: null,
+    paymentPolicyId: null,
+    returnPolicyId: null,
+    merchantLocationKey: null,
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };

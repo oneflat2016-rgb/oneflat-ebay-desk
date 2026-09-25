@@ -20,6 +20,11 @@ export interface ListingDraftRecord {
   /** §43(§110 step8): eBay Metadata APIが返す実際のconditionId(数値ID) */
   conditionId: string | null;
   conditionEnum: string | null;
+  /** §110 step10: eBay Sell Account API / Inventory API由来のBusiness Policies・保管場所 */
+  fulfillmentPolicyId: string | null;
+  paymentPolicyId: string | null;
+  returnPolicyId: string | null;
+  merchantLocationKey: string | null;
   title: string | null;
   status: 'DRAFT' | 'READY' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
   createdBy: string;
@@ -35,6 +40,10 @@ export interface ListingDraftPatch {
   categoryName?: string | null;
   conditionId?: string | null;
   conditionEnum?: string | null;
+  fulfillmentPolicyId?: string | null;
+  paymentPolicyId?: string | null;
+  returnPolicyId?: string | null;
+  merchantLocationKey?: string | null;
   title?: string | null;
   updatedBy?: string;
 }
@@ -49,6 +58,10 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
     categoryName: (row.category_name as string | null) ?? null,
     conditionId: (row.condition_id as string | null) ?? null,
     conditionEnum: (row.condition_enum as string | null) ?? null,
+    fulfillmentPolicyId: (row.fulfillment_policy_id as string | null) ?? null,
+    paymentPolicyId: (row.payment_policy_id as string | null) ?? null,
+    returnPolicyId: (row.return_policy_id as string | null) ?? null,
+    merchantLocationKey: (row.merchant_location_key as string | null) ?? null,
     title: (row.title as string | null) ?? null,
     status: row.status as ListingDraftRecord['status'],
     createdBy: row.created_by as string,
@@ -66,6 +79,10 @@ function patchToRow(patch: ListingDraftPatch): Record<string, unknown> {
   if ('categoryName' in patch) row.category_name = patch.categoryName;
   if ('conditionId' in patch) row.condition_id = patch.conditionId;
   if ('conditionEnum' in patch) row.condition_enum = patch.conditionEnum;
+  if ('fulfillmentPolicyId' in patch) row.fulfillment_policy_id = patch.fulfillmentPolicyId;
+  if ('paymentPolicyId' in patch) row.payment_policy_id = patch.paymentPolicyId;
+  if ('returnPolicyId' in patch) row.return_policy_id = patch.returnPolicyId;
+  if ('merchantLocationKey' in patch) row.merchant_location_key = patch.merchantLocationKey;
   if ('title' in patch) row.title = patch.title;
   if ('updatedBy' in patch) row.updated_by = patch.updatedBy;
   return row;
