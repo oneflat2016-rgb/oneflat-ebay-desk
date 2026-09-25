@@ -62,6 +62,27 @@ function toEbayAspects(aspects: Record<string, string[]>): Record<string, string
   return result;
 }
 
+/**
+ * §76(2026-09-25追加の修正): eBay Sell Inventory APIは`InventoryItem.product.description`と
+ * `Offer.listingDescription`という2つの別々のdescriptionフィールドを持つ。
+ * 前者はSKU単位(複数マーケットプレイスのOfferで共有される簡易説明)で、上限は
+ * 4000文字とかなり短い(errorId 25709で実機確認済み)。後者はOffer(marketplace)単位で、
+ * 実際に買い手へ表示されるフルHTML説明文(§49の装飾済みテンプレート)を入れる場所で、
+ * 上限も十分大きい。そのため、装飾済みHTML(buildDescriptionHtml)はOffer側
+ * (createOffer)のlistingDescriptionへ渡し、InventoryItem側にはタグを除去した
+ * プレーンテキストを4000文字以内に切り詰めて設定する(§117-4: 文言自体は
+ * アプリが作らず、あくまでeBayへ送ったHTMLをテキスト化しただけ)。
+ */
+function htmlToPlainTextTruncated(html: string, maxLength = 3900): string {
+  const text = html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
 export async function createOrReplaceInventoryItem(
   accessToken: string,
   payload: InventoryItemPayload,
@@ -75,7 +96,7 @@ export async function createOrReplaceInventoryItem(
     condition: payload.conditionEnum,
     product: {
       title: payload.title,
-      description: payload.descriptionHtml,
+      description: htmlToPlainTextTruncated(payload.descriptionHtml),
       aspects: toEbayAspects(payload.aspects),
       imageUrls: payload.imageUrls,
     },
@@ -115,6 +136,8 @@ export interface CreateOfferParams {
   fulfillmentPolicyId: string;
   returnPolicyId: string;
   marketplaceId: string;
+  /** §76: 実際に買い手へ表示するフルHTML説明文(§49の装飾済みテンプレート)はここに渡す。 */
+  listingDescriptionHtml: string;
 }
 
 export async function createOffer(
@@ -129,6 +152,7 @@ export async function createOffer(
     format: 'FIXED_PRICE',
     availableQuantity: params.quantity,
     categoryId: params.categoryId,
+    listingDescription: params.listingDescriptionHtml,
     listingPolicies: {
       paymentPolicyId: params.paymentPolicyId,
       fulfillmentPolicyId: params.fulfillmentPolicyId,

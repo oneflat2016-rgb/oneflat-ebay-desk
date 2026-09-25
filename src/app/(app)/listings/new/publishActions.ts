@@ -140,6 +140,7 @@ export async function publishListingToEbay(
       fulfillmentPolicyId: state.fulfillmentPolicyId as string,
       returnPolicyId: state.returnPolicyId as string,
       marketplaceId,
+      listingDescriptionHtml: descriptionHtml,
     });
 
     // §6: Publish ----------------------------------------------------------
