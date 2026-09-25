@@ -125,18 +125,27 @@ export function BusinessPoliciesSection({
             policies={data.fulfillmentPolicies}
             value={fulfillmentPolicyId}
             onChange={(v) => onChange({ fulfillmentPolicyId: v })}
+            isAdmin={isAdmin}
+            kind="FULFILLMENT"
+            onCreated={() => setReloadKey((k) => k + 1)}
           />
           <PolicySelect
             label="支払いポリシー(Payment Policy)"
             policies={data.paymentPolicies}
             value={paymentPolicyId}
             onChange={(v) => onChange({ paymentPolicyId: v })}
+            isAdmin={isAdmin}
+            kind="PAYMENT"
+            onCreated={() => setReloadKey((k) => k + 1)}
           />
           <PolicySelect
             label="返品ポリシー(Return Policy)"
             policies={data.returnPolicies}
             value={returnPolicyId}
             onChange={(v) => onChange({ returnPolicyId: v })}
+            isAdmin={isAdmin}
+            kind="RETURN"
+            onCreated={() => setReloadKey((k) => k + 1)}
           />
 
           <div className="field">
@@ -192,13 +201,20 @@ function PolicySelect({
   policies,
   value,
   onChange,
+  isAdmin,
+  kind,
+  onCreated,
 }: {
   label: string;
   policies: EbayBusinessPolicy[];
   value: string | null;
   onChange: (value: string | null) => void;
+  isAdmin: boolean;
+  kind: 'FULFILLMENT' | 'PAYMENT' | 'RETURN';
+  onCreated: () => void;
 }) {
   const id = `policy-${label}`;
+  const [showCreate, setShowCreate] = useState(false);
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
@@ -216,6 +232,112 @@ function PolicySelect({
           ))}
         </select>
       )}
+
+      {isAdmin && (
+        <>
+          <button type="button" className="btn" style={{ marginTop: 8 }} onClick={() => setShowCreate((v) => !v)}>
+            {showCreate ? '閉じる' : `＋ 新しい${label}を登録`}
+          </button>
+          {showCreate && (
+            <CreatePolicyForm
+              kind={kind}
+              onCreated={() => {
+                setShowCreate(false);
+                onCreated();
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CreatePolicyForm({
+  kind,
+  onCreated,
+}: {
+  kind: 'FULFILLMENT' | 'PAYMENT' | 'RETURN';
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [handlingTimeDays, setHandlingTimeDays] = useState('3');
+  const [returnPeriodDays, setReturnPeriodDays] = useState('30');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const res = await fetch('/api/ebay/policies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind,
+          name,
+          handlingTimeDays: Number(handlingTimeDays) || 3,
+          returnPeriodDays: Number(returnPeriodDays) || 30,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登録に失敗しました。');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 8 }}>
+      {kind === 'FULFILLMENT' && (
+        <p className="subnote">
+          国内発送・送料無料(USPS Priority)の簡易な配送ポリシーを作成します。詳細な条件はeBay側で別途調整してください。
+        </p>
+      )}
+      {kind === 'PAYMENT' && <p className="subnote">eBayの標準的な支払い方法(Managed Payments)をそのまま使う支払いポリシーを作成します。</p>}
+      {kind === 'RETURN' && <p className="subnote">返品可・返品送料は購入者負担の簡易な返品ポリシーを作成します。</p>}
+
+      <div className="field">
+        <label htmlFor={`policy-name-${kind}`}>ポリシー名</label>
+        <input id={`policy-name-${kind}`} value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      {kind === 'FULFILLMENT' && (
+        <div className="field">
+          <label htmlFor="handling-time">発送までの日数(Handling Time)</label>
+          <input
+            id="handling-time"
+            type="number"
+            min={1}
+            value={handlingTimeDays}
+            onChange={(e) => setHandlingTimeDays(e.target.value)}
+          />
+        </div>
+      )}
+      {kind === 'RETURN' && (
+        <div className="field">
+          <label htmlFor="return-period">返品受付期間(日)</label>
+          <input
+            id="return-period"
+            type="number"
+            min={1}
+            value={returnPeriodDays}
+            onChange={(e) => setReturnPeriodDays(e.target.value)}
+          />
+        </div>
+      )}
+      {error && (
+        <p className="subnote" style={{ color: 'var(--danger)' }}>
+          {error}
+        </p>
+      )}
+      <button type="button" className="btn primary" disabled={submitting || !name.trim()} onClick={handleSubmit}>
+        {submitting ? '登録しています…' : '登録する'}
+      </button>
     </div>
   );
 }

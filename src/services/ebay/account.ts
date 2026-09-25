@@ -111,3 +111,87 @@ export async function optInToBusinessPolicies(accessToken: string): Promise<void
   }
   throw new Error(`Business Policiesプログラムへの加入に失敗しました (${res.status}): ${body}`);
 }
+
+/**
+ * §110 step10: Business Policiesの新規作成。
+ * eBay Sandboxの管理画面(Web UI)自体が不安定/未提供のことがあるため、
+ * このアプリからAPI経由で最低限の内容(1件ずつ)を作成できるようにしてある。
+ * カテゴリー区分は出品予定商品(古物・中古工具等、車両以外)に合わせ、
+ * 常に "ALL_EXCLUDING_MOTORS_VEHICLES" 固定とする(§117-4寄りだが、
+ * ONEFLATが車両を扱わない前提のため許容。車両を扱う場合は別途対応)。
+ */
+const DEFAULT_CATEGORY_TYPES = [{ name: 'ALL_EXCLUDING_MOTORS_VEHICLES' as const }];
+
+async function createPolicy(
+  accessToken: string,
+  path: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${getEbayApiBaseUrl()}/sell/account/v1/${path}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`eBay Account API(${path})の作成に失敗しました (${res.status}): ${text}`);
+  }
+}
+
+export async function createFulfillmentPolicy(
+  accessToken: string,
+  params: { name: string; marketplaceId: string; handlingTimeDays: number },
+): Promise<void> {
+  await createPolicy(accessToken, 'fulfillment_policy', {
+    name: params.name,
+    marketplaceId: params.marketplaceId,
+    categoryTypes: DEFAULT_CATEGORY_TYPES,
+    handlingTime: { value: params.handlingTimeDays, unit: 'DAY' },
+    shippingOptions: [
+      {
+        optionType: 'DOMESTIC',
+        costType: 'FLAT_RATE',
+        shippingServices: [
+          {
+            sortOrder: 1,
+            shippingCarrierCode: 'USPS',
+            shippingServiceCode: 'USPSPriority',
+            shippingCost: { value: '0.00', currency: 'USD' },
+            freeShipping: true,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+export async function createPaymentPolicy(
+  accessToken: string,
+  params: { name: string; marketplaceId: string },
+): Promise<void> {
+  await createPolicy(accessToken, 'payment_policy', {
+    name: params.name,
+    marketplaceId: params.marketplaceId,
+    categoryTypes: DEFAULT_CATEGORY_TYPES,
+    // EBAY_US等のManaged Payments対象マーケットプレイスではpaymentMethodsは不要
+    // (eBay側が支払い方法一式を自動的に提供する)。
+  });
+}
+
+export async function createReturnPolicy(
+  accessToken: string,
+  params: { name: string; marketplaceId: string; returnPeriodDays: number },
+): Promise<void> {
+  await createPolicy(accessToken, 'return_policy', {
+    name: params.name,
+    marketplaceId: params.marketplaceId,
+    categoryTypes: DEFAULT_CATEGORY_TYPES,
+    returnsAccepted: true,
+    returnPeriod: { value: params.returnPeriodDays, unit: 'DAY' },
+    returnShippingCostPayer: 'BUYER',
+    refundMethod: 'MONEY_BACK',
+  });
+}
