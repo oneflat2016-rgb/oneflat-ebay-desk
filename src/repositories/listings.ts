@@ -545,6 +545,46 @@ export async function updateDraftQuantityOnly(listingDraftId: string, quantity: 
 }
 
 /**
+ * §110 step12(2026-09-26追加): End Item(出品終了)機能。
+ * 取り消せない操作のため、Offer更新(価格改定・在庫同期)より必要な情報は少ない
+ * (ebayOfferIdとstatusのみ)。専用の軽量な取得関数にしておく。
+ */
+export interface ListingForEnd {
+  id: string;
+  ebayOfferId: string | null;
+  status: 'ACTIVE' | 'ENDED' | 'SOLD_OUT' | 'ERROR';
+}
+
+export async function getListingForEnd(listingId: string): Promise<ListingForEnd | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .select('id, ebay_offer_id, status')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    ebayOfferId: (data.ebay_offer_id as string | null) ?? null,
+    status: data.status as ListingForEnd['status'],
+  };
+}
+
+/**
+ * withdrawOffer成功後、listings.statusをENDEDへ変更し、ended_atを記録する。
+ */
+export async function markListingEnded(listingId: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listings')
+    .update({ status: 'ENDED', ended_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', listingId)
+    .eq('status', 'ACTIVE'); // 二重終了防止(既にENDEDならこの条件で更新されない)
+  if (error) throw error;
+}
+
+/**
  * §110 step12(2026-09-26追加の修正): Publish時に組み立てた説明文HTML(buildDescriptionHtml)を
  * listing_drafts.description_htmlへ保存する。
  * これまでPublish処理はeBayへ渡すためだけにHTMLをその場で組み立てており、DBへは

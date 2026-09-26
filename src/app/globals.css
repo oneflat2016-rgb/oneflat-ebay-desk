@@ -248,6 +248,11 @@ textarea:focus {
 .btn.ghost {
   background: transparent;
 }
+.btn.danger {
+  background: #c0392b;
+  color: #fff;
+  border-color: #c0392b;
+}
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

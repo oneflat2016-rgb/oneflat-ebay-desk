@@ -337,3 +337,29 @@ export async function publishOffer(
   const json = (await res.json()) as { listingId: string };
   return { listingId: json.listingId, offerId, sku };
 }
+
+/**
+ * §110 step12(2026-09-26追加): End Item(出品終了)機能。
+ * eBay Sell Inventory APIの `POST /offer/{offerId}/withdraw` は、公開中のOfferを
+ * 取り下げて出品を終了する(旧Trading APIのEndItem/EndFixedPriceItemに相当する機能だが、
+ * こちらは終了理由(End Reason)の指定が不要な、よりシンプルなAPI)。
+ * 取り消せない操作のため、呼び出し元(Server Action)側で必ず確認を挟むこと。
+ */
+export async function withdrawOffer(accessToken: string, offerId: string): Promise<void> {
+  const res = await fetch(
+    `${getEbayApiBaseUrl()}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/withdraw`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Content-Language': 'en-US',
+        'Accept-Language': 'en-US',
+      },
+    },
+  );
+
+  if (res.status === 204 || res.ok) return;
+  const text = await res.text().catch(() => '');
+  throw new Error(`eBay Inventory API(offer withdraw)に失敗しました (${res.status}): ${text}`);
+}
