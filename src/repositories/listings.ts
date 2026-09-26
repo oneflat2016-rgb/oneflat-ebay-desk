@@ -445,3 +445,85 @@ export async function listPublishedListings(): Promise<PublishedListingListItem[
     };
   });
 }
+
+/**
+ * §110 step12(2026-09-26追加): 価格改定機能。
+ * eBay Offerを更新(PUT)するには、価格以外にもcategoryId・保管場所・各種ポリシー・
+ * 説明文HTMLといった、Publish時にlistingsとlisting_draftsへ分散して保存した項目が
+ * すべて揃っている必要がある(services/ebay/inventory.tsのupdateOfferは置換動作のため、
+ * 一部だけ送ると欠けた項目がeBay側で消えてしまう)。そのためここで両テーブルを結合して
+ * 1回で取得する。
+ */
+export interface ListingOfferUpdateDetail {
+  id: string;
+  listingDraftId: string | null;
+  sku: string;
+  status: 'ACTIVE' | 'ENDED' | 'SOLD_OUT' | 'ERROR';
+  ebayOfferId: string | null;
+  marketplaceId: string;
+  categoryId: string | null;
+  currency: string | null;
+  quantity: number | null;
+  merchantLocationKey: string | null;
+  paymentPolicyId: string | null;
+  fulfillmentPolicyId: string | null;
+  returnPolicyId: string | null;
+  descriptionHtml: string | null;
+}
+
+export async function getListingForOfferUpdate(listingId: string): Promise<ListingOfferUpdateDetail | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .select(
+      `id, listing_draft_id, sku, status, ebay_offer_id, marketplace_id, category_id,
+       listing_draft:listing_drafts ( currency, quantity, merchant_location_key,
+         payment_policy_id, fulfillment_policy_id, return_policy_id, description_html )`,
+    )
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  type DraftJoin = {
+    currency: string | null;
+    quantity: number | null;
+    merchant_location_key: string | null;
+    payment_policy_id: string | null;
+    fulfillment_policy_id: string | null;
+    return_policy_id: string | null;
+    description_html: string | null;
+  };
+  const draftRaw = data.listing_draft as DraftJoin | DraftJoin[] | null;
+  const draft = Array.isArray(draftRaw) ? draftRaw[0] : draftRaw;
+
+  return {
+    id: data.id as string,
+    listingDraftId: (data.listing_draft_id as string | null) ?? null,
+    sku: data.sku as string,
+    status: data.status as ListingOfferUpdateDetail['status'],
+    ebayOfferId: (data.ebay_offer_id as string | null) ?? null,
+    marketplaceId: data.marketplace_id as string,
+    categoryId: (data.category_id as string | null) ?? null,
+    currency: draft?.currency ?? null,
+    quantity: draft?.quantity ?? null,
+    merchantLocationKey: draft?.merchant_location_key ?? null,
+    paymentPolicyId: draft?.payment_policy_id ?? null,
+    fulfillmentPolicyId: draft?.fulfillment_policy_id ?? null,
+    returnPolicyId: draft?.return_policy_id ?? null,
+    descriptionHtml: draft?.description_html ?? null,
+  };
+}
+
+/**
+ * 価格改定成功後、listing_drafts.priceを新しい値へ更新しておく
+ * (次回この画面を開いたときに表示される価格・次回のPublish/Offer更新の基準値を最新にする)。
+ */
+export async function updateDraftPriceOnly(listingDraftId: string, price: number): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listing_drafts')
+    .update({ price, updated_at: new Date().toISOString() })
+    .eq('id', listingDraftId);
+  if (error) throw error;
+}

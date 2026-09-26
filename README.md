@@ -103,7 +103,8 @@ npm run dev
 - **出品済みListing一覧画面(§110 step12・第一段階)**: `/listings` で、Publish成功済みのListing(タイトル・SKU・価格・数量・ステータス・出品日・eBay商品ページへのリンク)を一覧表示できる。
   - `repositories/listings.ts` の `listPublishedListings()` が、`listings`(公開後の正本)を軸に `listing_drafts`(公開時点のタイトル・価格・数量)を結合して取得する。organization単位の絞り込みは明示的なfilterを書かず、既存のRLSポリシー(「listings: same organization」)に任せている。
   - `services/ebay/auth.ts` に `buildEbayItemUrl()` を追加し、Sandbox/Production環境に応じたeBay商品ページURLを組み立てる。
-  - **この段階では一覧表示のみ**。End Item(出品終了)・在庫同期・価格改定・再出品は未実装(いずれも実際のeBayデータを書き換える操作のため、慎重に1つずつ後続stepで追加する方針)。
+  - **価格改定(2026-09-26追加)**: ステータスが出品中(ACTIVE)のListingに限り、一覧上で価格を直接編集して「更新」ボタンでeBayへ反映できる(`src/app/(app)/listings/priceActions.ts` の `updateListingPrice`、UIは `src/components/listing/PriceEditCell.tsx`)。eBay Sell Inventory APIの `PUT /offer/{offerId}` は置換動作のため、価格だけでなくカテゴリー・保管場所・各種ポリシー・説明文HTMLも揃えて送る必要があり、これらのいずれかが欠けている場合は安全のため更新自体を中止する(`repositories/listings.ts` の `getListingForOfferUpdate`)。更新成功後は `listing_drafts.price` も新しい値に同期する。
+  - **End Item(出品終了)・在庫同期・再出品は未実装**(いずれも実際のeBayデータを書き換える操作のため、慎重に1つずつ後続stepで追加する方針)。
 
 ## まだ実装されていないもの(意図的に未実装)
 

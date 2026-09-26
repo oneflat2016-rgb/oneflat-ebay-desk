@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listPublishedListings } from '@/repositories/listings';
 import { buildEbayItemUrl } from '@/services/ebay/auth';
+import { PriceEditCell } from '@/components/listing/PriceEditCell';
 
 /**
  * §110 step12(2026-09-26): 出品済みListing管理画面の第一段階(一覧表示のみ)。
@@ -23,7 +24,7 @@ export default async function ListingsIndexPage() {
           </div>
           <h1 style={{ fontSize: 'clamp(1.5rem,3vw,2.1rem)' }}>出品済みListing一覧</h1>
           <p className="subnote" style={{ maxWidth: '60ch' }}>
-            現在eBayへ出品済み(Publish成功済み)のListingです。End Item・在庫同期・価格改定・再出品は今後追加予定です。
+            現在eBayへ出品済み(Publish成功済み)のListingです。価格は出品中(ACTIVE)のものだけその場で変更できます。在庫同期・End Item・再出品は今後追加予定です。
           </p>
         </div>
         <Link href="/listings/new" className="btn primary">
@@ -53,7 +54,12 @@ export default async function ListingsIndexPage() {
                   <td style={{ padding: '8px 10px', maxWidth: 320 }}>{listing.title ?? '(タイトル未取得)'}</td>
                   <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{listing.sku}</td>
                   <td style={{ padding: '8px 10px' }}>
-                    {listing.price ? `${listing.currency ?? ''} ${listing.price}` : '-'}
+                    <PriceEditCell
+                      listingId={listing.id}
+                      initialPrice={listing.price}
+                      currency={listing.currency}
+                      editable={listing.status === 'ACTIVE'}
+                    />
                   </td>
                   <td style={{ padding: '8px 10px' }}>{listing.quantity ?? '-'}</td>
                   <td style={{ padding: '8px 10px' }}>
