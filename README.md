@@ -114,6 +114,10 @@ npm run dev
 - **AIタイトル生成(指示書§12・2026-09-26追加)**: `/listings/new` の「1. タイトル」セクションに「AIでタイトル候補を生成」ボタンを追加した(`src/services/ai/generateTitle.ts` の `generateTitleCandidates`、APIルートは `src/app/api/ai/generate-title/route.ts`)。ブランド・商品名・Condition(動的Conditionが選択されていればその説明文、無ければ旧固定Conditionのラベル)・Item Specifics(`state.aspectValues`)・ユーザーが入力したアピールキーワードのみをClaudeへ渡し、それら以外の事実(未確認の"RARE"・"Authentic"・"Mint"・"Vintage"・"Made in Japan"等)を勝手に付け足さないようsystem prompt側で制約している。候補は最大3件、80文字以内(念のためサーバー側でも80文字超は切り詰める)。
   - 既存のヒューリスティック生成(`src/lib/listing/titleSuggestions.ts`)は「簡易候補を提案(AIを使わない)」ボタンとして残し、AI呼び出しが失敗した場合(`ANTHROPIC_API_KEY`未設定時や一時的なAPIエラー時)でもAI以外の手段で作業を止めずに続行できるようにした。
 
+- **AI説明文の下書き生成(指示書§13・2026-09-26追加)**: `/listings/new` に「2.5. AIによる説明文の下書き作成」セクションを追加した(`src/services/ai/generateDescription.ts` の `generateDescriptionDrafts`、APIルートは `src/app/api/ai/generate-description/route.ts`、UIは `src/components/listing/AiDescriptionDraftSection.tsx`)。ボタンを押すと、カテゴリー名・Item Specifics(`state.aspectValues`)・Condition説明文だけを根拠に、About This Item / Appearance / Condition詳細 / Included Itemsの4セクションぶんの日本語下書きをまとめて作成し、各セクションの日本語欄へ反映する(既存の「→ 英語に変換」ボタンはそのまま使えるので、下書き作成→内容確認・編集→英語に変換、という流れになる)。
+  - 確認できていない事実(傷の有無・付属品の有無・動作確認結果など)は勝手に書き足さないようsystem prompt側で制約し、該当情報が無いセクションは空文字を返す設計。あくまで「下書き」であり、最終的な説明文HTML組み立ては引き続き既存の `src/lib/listing/templateHtml.ts` が行う。
+  - AI呼び出しが失敗した場合でも、4セクションはこれまでどおり手入力で続行できる。
+
 ## まだ実装されていないもの(意図的に未実装)
 
 このスキャフォールドは「型・ディレクトリ構成・サービス層の輪郭」を先に作り、実データ連携は指示書§110の順序どおり後続フェーズで実装する方針です。
@@ -124,7 +128,7 @@ npm run dev
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
 - 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ。Publish時は`sort_order`順(is_primary優先)で画像を送る)
 - eBay Media API(EPS) — 未実装のまま(step11の設計判断により、Sell Inventory APIには署名付きURLを直接渡しているため現時点では不要)
-- Claude APIによるAspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成は実装済み)
+- Claude APIによるAspect補完・価格/配送提案・出品前AIチェック — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成・説明文下書き生成は実装済み)
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
 
@@ -156,7 +160,7 @@ npm run dev
 
 「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づき、以降は以下の順で進める。
 
-- [x] Phase 3(Claude): 商品画像解析(§6・実装済み) → **AIタイトル生成(§12・2026-09-26実装)** → 次: AI説明文生成(§13) → 出品前AIチェック(§24)
+- [x] Phase 3(Claude): 商品画像解析(§6・実装済み) → AIタイトル生成(§12・2026-09-26実装) → **AI説明文の下書き生成(§13・2026-09-26実装)** → 次: 出品前AIチェック(§24)
 - [ ] Phase 4: ONEFLAT販売履歴データベース(§10)・自社販売実績照合(§11)
 - [ ] Phase 5: AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21)・売れない商品の改善提案(§35)
 - [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)

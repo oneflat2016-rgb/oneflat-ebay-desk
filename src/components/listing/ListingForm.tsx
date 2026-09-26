@@ -10,6 +10,7 @@ import { publishListingToEbay } from '@/app/(app)/listings/new/publishActions';
 import { ImagesSection } from './ImagesSection';
 import { PricingSection } from './PricingSection';
 import { AiAnalysisSection } from './AiAnalysisSection';
+import { AiDescriptionDraftSection, type DescriptionDrafts } from './AiDescriptionDraftSection';
 import { CategorySuggestSection } from './CategorySuggestSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
@@ -89,6 +90,16 @@ export function ListingForm({
 
   function handleAspectValueChange(aspectName: string, values: string[]) {
     setState((prev) => ({ ...prev, aspectValues: { ...prev.aspectValues, [aspectName]: values } }));
+  }
+
+  function handleDescriptionDrafts(drafts: DescriptionDrafts) {
+    setState((prev) => ({
+      ...prev,
+      about: { ...prev.about, ja: drafts.aboutJa },
+      appearance: { ...prev.appearance, ja: drafts.appearanceJa },
+      conditionDetail: { ...prev.conditionDetail, ja: drafts.conditionJa },
+      includedItems: { ...prev.includedItems, ja: drafts.includedItemsJa },
+    }));
   }
 
   function handleChecklistToggle(id: string) {
@@ -254,6 +265,17 @@ export function ListingForm({
           quantity={state.quantity}
           currency={state.currency}
           onChange={(patchValue) => patch(patchValue)}
+        />
+
+        <AiDescriptionDraftSection
+          productType={state.categoryName || state.genre || null}
+          confirmedAspects={Object.fromEntries(
+            Object.entries(state.aspectValues)
+              .filter(([, values]) => values.some((v) => v.trim()))
+              .map(([name, values]) => [name, values.filter((v) => v.trim()).join(', ')]),
+          )}
+          conditionNotes={state.ebayConditionDescription ?? undefined}
+          onDraftsGenerated={handleDescriptionDrafts}
         />
 
         <BilingualSection
