@@ -185,6 +185,8 @@ export function ListingForm({
           category={state.category}
           categoryPreset={state.categoryPreset}
           condition={state.condition}
+          ebayConditionDescription={state.ebayConditionDescription}
+          aspectValues={state.aspectValues}
           onBrandChange={(brand) => patch({ brand })}
           onModelChange={(model) => patch({ model })}
           onKeywordsChange={(keywords) => patch({ keywords })}

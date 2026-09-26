@@ -14,6 +14,8 @@ interface Props {
   category: string;
   categoryPreset: string;
   condition: ConditionValue;
+  ebayConditionDescription: string | null;
+  aspectValues: Record<string, string[]>;
   onBrandChange: (v: string) => void;
   onModelChange: (v: string) => void;
   onKeywordsChange: (v: string) => void;
@@ -30,6 +32,8 @@ export function TitleSection({
   title,
   category,
   condition,
+  ebayConditionDescription,
+  aspectValues,
   onBrandChange,
   onModelChange,
   onKeywordsChange,
@@ -38,8 +42,40 @@ export function TitleSection({
   onCategoryPresetChange,
 }: Props) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const len = title.length;
   const presets = genre ? (CATEGORY_PRESETS[genre] ?? []) : [];
+
+  async function handleAiGenerate() {
+    setIsAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch('/api/ai/generate-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: brand.trim() || null,
+          model: model.trim() || null,
+          condition: ebayConditionDescription ?? condition,
+          keyAspects: aspectValues,
+          keywords,
+        }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? 'AIタイトル生成に失敗しました。');
+      }
+      const data = (await res.json()) as { titles: string[] };
+      setSuggestions(data.titles);
+    } catch (err) {
+      setAiError(
+        err instanceof Error ? err.message : 'AIタイトル生成に失敗しました。手入力または下のボタンで続行できます。',
+      );
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
 
   return (
     <section className="card">
@@ -126,20 +162,28 @@ export function TitleSection({
           </p>
         </div>
       </div>
-      <div className="actions-row" style={{ marginTop: 2 }}>
+      <div className="actions-row" style={{ marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
+        <button type="button" className="btn primary" onClick={handleAiGenerate} disabled={isAiLoading}>
+          {isAiLoading ? 'AIがタイトルを作成中…' : 'AIでタイトル候補を生成'}
+        </button>
         <button
           type="button"
-          className="btn"
+          className="btn ghost"
           onClick={() =>
             setSuggestions(buildTitleCandidates({ brand, model, keywords, condition }))
           }
         >
-          英語圏向けのタイトル候補を提案
+          簡易候補を提案(AIを使わない)
         </button>
       </div>
       <p className="subnote">
-        TODO(§47-48): 現在はヒューリスティック生成。将来はPOST /api/ai/generate-title(Claude API)に置き換える。
+        指示書§12: AIはブランド・型番・状態・Item Specifics・入力したキーワードなど、確認できている情報だけからタイトルを作成します(未確認の&quot;RARE&quot;や&quot;Vintage&quot;などは勝手に付け足しません)。AIが使えない場合は「簡易候補」ボタンでも続行できます。
       </p>
+      {aiError && (
+        <p className="subnote" style={{ color: '#c0392b', marginTop: 4 }}>
+          {aiError}
+        </p>
+      )}
       {suggestions.length > 0 && (
         <div className="suggestion-list" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {suggestions.map((s) => (

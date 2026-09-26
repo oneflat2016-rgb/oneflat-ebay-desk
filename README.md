@@ -111,6 +111,9 @@ npm run dev
   - **2026-09-26追加の修正(1)**: Publish処理はこれまでeBayへ渡すためだけに説明文HTMLをその場で組み立てており、`listing_drafts.description_html`へは保存していなかった。そのため価格改定機能が「説明文が空」と判定して更新を安全側で中止してしまう不具合があった。Publish/再Publishのたびに `listingsRepo.updateDraftDescriptionHtml()` で保存するよう修正(`publishActions.ts`)。
   - **2026-09-26追加の修正(2)**: 「既存下書きを開き直してPublishし直す」導線がまだ未実装のため、修正(1)より前にPublishされたListingは再Publishできず、DB側の説明文を補う手段が無かった。そこで `services/ebay/inventory.ts` に `getOffer`(`GET /offer/{offerId}`)を追加し、DBに説明文が無い場合はeBay側に現在登録されている値をそのまま取得して使うようにした(`priceActions.ts`)。取得できた場合はついでにDBへも保存するため、2回目以降はeBayへの追加リクエストなしで済む。
 
+- **AIタイトル生成(指示書§12・2026-09-26追加)**: `/listings/new` の「1. タイトル」セクションに「AIでタイトル候補を生成」ボタンを追加した(`src/services/ai/generateTitle.ts` の `generateTitleCandidates`、APIルートは `src/app/api/ai/generate-title/route.ts`)。ブランド・商品名・Condition(動的Conditionが選択されていればその説明文、無ければ旧固定Conditionのラベル)・Item Specifics(`state.aspectValues`)・ユーザーが入力したアピールキーワードのみをClaudeへ渡し、それら以外の事実(未確認の"RARE"・"Authentic"・"Mint"・"Vintage"・"Made in Japan"等)を勝手に付け足さないようsystem prompt側で制約している。候補は最大3件、80文字以内(念のためサーバー側でも80文字超は切り詰める)。
+  - 既存のヒューリスティック生成(`src/lib/listing/titleSuggestions.ts`)は「簡易候補を提案(AIを使わない)」ボタンとして残し、AI呼び出しが失敗した場合(`ANTHROPIC_API_KEY`未設定時や一時的なAPIエラー時)でもAI以外の手段で作業を止めずに続行できるようにした。
+
 ## まだ実装されていないもの(意図的に未実装)
 
 このスキャフォールドは「型・ディレクトリ構成・サービス層の輪郭」を先に作り、実データ連携は指示書§110の順序どおり後続フェーズで実装する方針です。
@@ -121,8 +124,7 @@ npm run dev
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
 - 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ。Publish時は`sort_order`順(is_primary優先)で画像を送る)
 - eBay Media API(EPS) — 未実装のまま(step11の設計判断により、Sell Inventory APIには署名付きURLを直接渡しているため現時点では不要)
-- 出品済みListingの終了(End Item)・在庫同期・価格改定・再出品 — 未実装(Publish=新規出品のみ。`listings`テーブルへの記録までは実装済み)
-- Claude APIによるタイトル生成・Aspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析は実装済み)
+- Claude APIによるAspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成は実装済み)
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
 
@@ -146,11 +148,18 @@ npm run dev
 6. **eBay Developer PortalのRuName(redirect URL name)** — `EBAY_REDIRECT_URI`(§9)。アプリの設定画面で作成し、`https://oneflat-ebay-desk.vercel.app/api/ebay/oauth/callback` を紐づけます。
 7. PWA用アイコン画像(`public/icons/icon-192.png`, `icon-512.png`) — ロゴが決まり次第追加してください(暫定で未配置)。
 
-## 次に実装するもの(指示書§110の順序)
+## 次に実装するもの
 
-12番以降は指示書側で次の番号がどの機能か確定次第、順に着手する(Phase2の注文/利益管理機能、または出品済みListingの管理画面などが候補)。
+(§110の1〜11番=Publishまで完了。Sandboxでの実機Publish成功は確認済みだが、本番(Production)ではまだ未検証。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
-(11番のPublishまで完了。Sandboxでの実機Publish成功は確認済みだが、本番(Production)ではまだ未検証。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
+出品済みListing管理画面(§110 step12: 一覧表示・価格改定・在庫同期・End Item・再出品)は完了。
+
+「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づき、以降は以下の順で進める。
+
+- [x] Phase 3(Claude): 商品画像解析(§6・実装済み) → **AIタイトル生成(§12・2026-09-26実装)** → 次: AI説明文生成(§13) → 出品前AIチェック(§24)
+- [ ] Phase 4: ONEFLAT販売履歴データベース(§10)・自社販売実績照合(§11)
+- [ ] Phase 5: AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21)・売れない商品の改善提案(§35)
+- [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 
