@@ -247,6 +247,29 @@ export async function updateOffer(accessToken: string, offerId: string, params: 
 }
 
 /**
+ * §110 step12(2026-09-26追加): 価格改定機能の補助。
+ * listing_drafts.description_htmlがDB側に無い場合(このアプリで「既存下書きを
+ * 開き直してPublishし直す」導線がまだ未実装のため、過去にPublishしたListingでは
+ * この状況が起こりうる)、eBay側に現在登録されている値をそのまま取得して代わりに使う。
+ * GET /offer/{offerId} は既存Offerの現在の状態(listingDescription含む)を返す。
+ */
+export async function getOffer(accessToken: string, offerId: string): Promise<{ listingDescription: string | null }> {
+  const res = await fetch(`${getEbayApiBaseUrl()}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Language': 'en-US',
+      'Accept-Language': 'en-US',
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`eBay Inventory API(offer取得)に失敗しました (${res.status}): ${text}`);
+  }
+  const json = (await res.json()) as { listingDescription?: string };
+  return { listingDescription: json.listingDescription ?? null };
+}
+
+/**
  * §71: eBayのerrorId 25002("Offer entity already exists")のレスポンス本文には
  * `errors[].parameters[]`に`{name: "offerId", value: "<既存のOffer ID>"}`という形で
  * 既存Offer IDがそのまま含まれている(2026-09-25 Sandbox実機確認済み)。

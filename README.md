@@ -105,7 +105,8 @@ npm run dev
   - `services/ebay/auth.ts` に `buildEbayItemUrl()` を追加し、Sandbox/Production環境に応じたeBay商品ページURLを組み立てる。
   - **価格改定(2026-09-26追加)**: ステータスが出品中(ACTIVE)のListingに限り、一覧上で価格を直接編集して「更新」ボタンでeBayへ反映できる(`src/app/(app)/listings/priceActions.ts` の `updateListingPrice`、UIは `src/components/listing/PriceEditCell.tsx`)。eBay Sell Inventory APIの `PUT /offer/{offerId}` は置換動作のため、価格だけでなくカテゴリー・保管場所・各種ポリシー・説明文HTMLも揃えて送る必要があり、これらのいずれかが欠けている場合は安全のため更新自体を中止する(`repositories/listings.ts` の `getListingForOfferUpdate`)。更新成功後は `listing_drafts.price` も新しい値に同期する。
   - **End Item(出品終了)・在庫同期・再出品は未実装**(いずれも実際のeBayデータを書き換える操作のため、慎重に1つずつ後続stepで追加する方針)。
-  - **2026-09-26追加の修正**: Publish処理はこれまでeBayへ渡すためだけに説明文HTMLをその場で組み立てており、`listing_drafts.description_html`へは保存していなかった。そのため価格改定機能が「説明文が空」と判定して更新を安全側で中止してしまう不具合があった。Publish/再Publishのたびに `listingsRepo.updateDraftDescriptionHtml()` で保存するよう修正(`publishActions.ts`)。**この修正より前にPublishしたListingは、一度再Publish(同じ内容でPublishボタンを押し直す)すると説明文が保存され、以降は価格改定が正常に動作する。**
+  - **2026-09-26追加の修正(1)**: Publish処理はこれまでeBayへ渡すためだけに説明文HTMLをその場で組み立てており、`listing_drafts.description_html`へは保存していなかった。そのため価格改定機能が「説明文が空」と判定して更新を安全側で中止してしまう不具合があった。Publish/再Publishのたびに `listingsRepo.updateDraftDescriptionHtml()` で保存するよう修正(`publishActions.ts`)。
+  - **2026-09-26追加の修正(2)**: 「既存下書きを開き直してPublishし直す」導線がまだ未実装のため、修正(1)より前にPublishされたListingは再Publishできず、DB側の説明文を補う手段が無かった。そこで `services/ebay/inventory.ts` に `getOffer`(`GET /offer/{offerId}`)を追加し、DBに説明文が無い場合はeBay側に現在登録されている値をそのまま取得して使うようにした(`priceActions.ts`)。取得できた場合はついでにDBへも保存するため、2回目以降はeBayへの追加リクエストなしで済む。
 
 ## まだ実装されていないもの(意図的に未実装)
 
