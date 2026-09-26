@@ -21,6 +21,7 @@ import { BilingualSection } from './BilingualSection';
 import { SpecificsSection } from './SpecificsSection';
 import { DynamicAspectsSection } from './DynamicAspectsSection';
 import { ChecklistSection } from './ChecklistSection';
+import { PrelistingAiCheckSection, type PrelistingCheckInput } from './PrelistingAiCheckSection';
 import { ColorTemplateSection } from './ColorTemplateSection';
 import { PreviewPanel } from './PreviewPanel';
 
@@ -338,6 +339,27 @@ export function ListingForm({
         </section>
 
         <ChecklistSection checklist={state.checklist} onToggle={handleChecklistToggle} />
+
+        <PrelistingAiCheckSection
+          getInput={(): PrelistingCheckInput => ({
+            productId: identity.productId,
+            title: state.title,
+            brand: state.brand || null,
+            model: state.model || null,
+            categoryId: state.categoryId,
+            ebayConditionId: state.ebayConditionId,
+            conditionDetailJa: state.conditionDetail.ja,
+            conditionDetailEn: state.conditionDetail.en,
+            aboutEn: state.about.en,
+            appearanceEn: state.appearance.en,
+            includedItemsEn: state.includedItems.en,
+            fulfillmentPolicyId: state.fulfillmentPolicyId,
+            paymentPolicyId: state.paymentPolicyId,
+            returnPolicyId: state.returnPolicyId,
+            merchantLocationKey: state.merchantLocationKey,
+            price: state.price,
+          })}
+        />
 
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
