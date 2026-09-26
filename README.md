@@ -100,6 +100,11 @@ npm run dev
   - **2026-09-26修正**: 同一SKUに対して既にOfferが存在する場合(errorId 25002)、以前は既存のOffer IDをそのまま再利用するだけで、前回の失敗/中断時点の古い価格・数量・説明文が残ったままPublishされてしまう不具合があった。現在は既存Offerが見つかった場合、必ず`updateOffer`(`PUT /offer/{offerId}`)で今回入力した最新の価格・数量・ポリシー・説明文へ同期してからPublishする(`src/services/ebay/inventory.ts`)。
   - `audit_logs`テーブルは元々SELECTポリシーしかなかったため、INSERTポリシーを追加した(上記「今回追加で必要な作業」参照)。
 
+- **出品済みListing一覧画面(§110 step12・第一段階)**: `/listings` で、Publish成功済みのListing(タイトル・SKU・価格・数量・ステータス・出品日・eBay商品ページへのリンク)を一覧表示できる。
+  - `repositories/listings.ts` の `listPublishedListings()` が、`listings`(公開後の正本)を軸に `listing_drafts`(公開時点のタイトル・価格・数量)を結合して取得する。organization単位の絞り込みは明示的なfilterを書かず、既存のRLSポリシー(「listings: same organization」)に任せている。
+  - `services/ebay/auth.ts` に `buildEbayItemUrl()` を追加し、Sandbox/Production環境に応じたeBay商品ページURLを組み立てる。
+  - **この段階では一覧表示のみ**。End Item(出品終了)・在庫同期・価格改定・再出品は未実装(いずれも実際のeBayデータを書き換える操作のため、慎重に1つずつ後続stepで追加する方針)。
+
 ## まだ実装されていないもの(意図的に未実装)
 
 このスキャフォールドは「型・ディレクトリ構成・サービス層の輪郭」を先に作り、実データ連携は指示書§110の順序どおり後続フェーズで実装する方針です。

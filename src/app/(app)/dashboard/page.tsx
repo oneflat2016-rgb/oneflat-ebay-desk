@@ -14,9 +14,14 @@ export default function DashboardPage() {
       <p className="subnote" style={{ marginBottom: 20 }}>
         ホーム画面(§30)は未実装です。現在は商品登録フォームのみ利用できます。
       </p>
-      <Link href="/listings/new" className="btn primary">
-        📷 商品を撮影して出品(暫定: 従来フォームへ)
-      </Link>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Link href="/listings/new" className="btn primary">
+          📷 商品を撮影して出品(暫定: 従来フォームへ)
+        </Link>
+        <Link href="/listings" className="btn">
+          出品済みListing一覧を見る
+        </Link>
+      </div>
     </main>
   );
 }

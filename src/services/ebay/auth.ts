@@ -13,12 +13,20 @@
  * サーバー専用コードからのみimportすること)。
  */
 
-function getEbayEnv(): 'sandbox' | 'production' {
+/** §110 step12: 出品済みListing一覧画面でeBay商品ページへのリンクを組み立てる際にも使う。 */
+export function getEbayEnv(): 'sandbox' | 'production' {
   return process.env.EBAY_ENV === 'production' ? 'production' : 'sandbox';
 }
 
 export function getEbayApiBaseUrl(): string {
   return getEbayEnv() === 'production' ? 'https://api.ebay.com' : 'https://api.sandbox.ebay.com';
+}
+
+/** §110 step12: Listing IDからeBayの商品ページURLを組み立てる(env: サンドボックス/本番)。 */
+export function buildEbayItemUrl(ebayListingId: string): string {
+  return getEbayEnv() === 'production'
+    ? `https://www.ebay.com/itm/${encodeURIComponent(ebayListingId)}`
+    : `https://sandbox.ebay.com/itm/${encodeURIComponent(ebayListingId)}`;
 }
 
 function getEbayCredentials(): { clientId: string; clientSecret: string } {

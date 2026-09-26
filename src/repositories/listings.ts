@@ -378,3 +378,70 @@ export async function createPublishedListing(params: {
   if (error) throw error;
   return { id: data.id as string };
 }
+
+/**
+ * §110 step12(2026-09-26): 出品済みListing一覧画面(まずは一覧表示のみ)。
+ * listings(公開後の正本)を軸に、表示用のタイトル・価格・数量は
+ * listing_drafts(§18のコメントの通り、公開時点の入力内容がそのまま残る)から取得する。
+ * organization単位の絞り込みは明示的なfilterを書かず、schema.sqlのRLSポリシー
+ * (「listings: same organization」= products経由でorganization_idを突き合わせる)に
+ * 任せる(getSupabaseServerClient()はログイン中ユーザーのセッションを使うクライアントの
+ * ため、RLSが常に効く。管理者クライアント(service_role)はここでは使わない)。
+ */
+export interface PublishedListingListItem {
+  id: string;
+  productId: string;
+  sku: string;
+  title: string | null;
+  price: string | null;
+  currency: string | null;
+  quantity: number | null;
+  ebayListingId: string | null;
+  ebayOfferId: string | null;
+  marketplaceId: string;
+  status: 'ACTIVE' | 'ENDED' | 'SOLD_OUT' | 'ERROR';
+  publishedAt: string | null;
+  endedAt: string | null;
+  soldAt: string | null;
+}
+
+export async function listPublishedListings(): Promise<PublishedListingListItem[]> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .select(
+      `id, product_id, sku, ebay_listing_id, ebay_offer_id, marketplace_id, status,
+       published_at, ended_at, sold_at,
+       listing_draft:listing_drafts ( title, price, currency, quantity )`,
+    )
+    .order('published_at', { ascending: false, nullsFirst: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => {
+    // Supabase-jsの型は1件のFK関係でも配列/オブジェクトいずれの形でも返しうるため、
+    // 念のため両対応にしておく。
+    const draftRaw = row.listing_draft as
+      | { title: string | null; price: number | string | null; currency: string | null; quantity: number | null }
+      | { title: string | null; price: number | string | null; currency: string | null; quantity: number | null }[]
+      | null;
+    const draft = Array.isArray(draftRaw) ? draftRaw[0] : draftRaw;
+
+    return {
+      id: row.id as string,
+      productId: row.product_id as string,
+      sku: row.sku as string,
+      title: draft?.title ?? null,
+      price: draft?.price === null || draft?.price === undefined ? null : String(draft.price),
+      currency: draft?.currency ?? null,
+      quantity: draft?.quantity ?? null,
+      ebayListingId: (row.ebay_listing_id as string | null) ?? null,
+      ebayOfferId: (row.ebay_offer_id as string | null) ?? null,
+      marketplaceId: row.marketplace_id as string,
+      status: row.status as PublishedListingListItem['status'],
+      publishedAt: (row.published_at as string | null) ?? null,
+      endedAt: (row.ended_at as string | null) ?? null,
+      soldAt: (row.sold_at as string | null) ?? null,
+    };
+  });
+}
