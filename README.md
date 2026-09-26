@@ -97,6 +97,7 @@ npm run dev
   - 本番URLが `oneflat-ebay-desk.vercel.app` と異なる独自ドメインになった場合は、環境変数 `APP_BASE_URL`(例: `https://your-domain.com`)を設定してください。未設定の場合はVercelが自動で設定する`VERCEL_URL`を使うため、通常は追加設定不要です。
   - eBay Metadata APIの`conditionId`(数値)は、Sell Inventory APIが要求する`ConditionEnum`文字列(例: `USED_EXCELLENT`)へ`src/lib/ebay/conditionEnumMap.ts`の対応表で変換する。未登録のconditionIdの場合はエラーにする(推測変換はしない、§117-4)。
   - Publish失敗時(eBay側のエラー・バリデーション失敗等)は`listing_drafts.status`を`FAILED`に戻し、再度Publishボタンを押せば最初からやり直せる(§71。`createOrReplaceInventoryItem`/`createOffer`は同じ内容なら再実行しても安全な設計)。
+  - **2026-09-26修正**: 同一SKUに対して既にOfferが存在する場合(errorId 25002)、以前は既存のOffer IDをそのまま再利用するだけで、前回の失敗/中断時点の古い価格・数量・説明文が残ったままPublishされてしまう不具合があった。現在は既存Offerが見つかった場合、必ず`updateOffer`(`PUT /offer/{offerId}`)で今回入力した最新の価格・数量・ポリシー・説明文へ同期してからPublishする(`src/services/ebay/inventory.ts`)。
   - `audit_logs`テーブルは元々SELECTポリシーしかなかったため、INSERTポリシーを追加した(上記「今回追加で必要な作業」参照)。
 
 ## まだ実装されていないもの(意図的に未実装)

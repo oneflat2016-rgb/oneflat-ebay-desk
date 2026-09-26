@@ -22,10 +22,12 @@ import { assertValidSku } from '@/lib/sku/skuStrategy';
  * サーバー側でも同一draftからの二重Publishをロックする(repositories/listings.tsの
  * lockDraftForPublishing)。
  * §71: 途中で失敗しても成功済みID/状態を保存し、再試行時は可能な限り
- * 途中から再開する(全部やり直さない)。現状の実装は「createOrReplaceInventoryItemと
- * createOfferは何度呼んでも同じ結果になる(冪等)」ため、再試行時は単純に最初から
- * publishListingをやり直せば良い設計にしてある(offerIdだけ再作成を避けたい場合は
- * 別途Offer検索APIを使う拡張の余地があるが、Phase1では簡略化する)。
+ * 途中から再開する(全部やり直さない)。createOrReplaceInventoryItemは何度呼んでも
+ * 同じ結果になる(冪等)。createOfferは同一SKUに対して既にOfferが存在する場合(25002)、
+ * その既存OfferIdを再利用したうえで、updateOffer(PUT)で今回入力した最新の価格・数量・
+ * ポリシー・説明文へ同期してから返す(2026-09-26修正: 以前は既存Offerをそのまま
+ * 再利用するだけで、前回の失敗/中断時点の古い値が残ったままPublishされてしまう
+ * 不具合があった)。
  * §76: createOrReplaceInventoryItemは部分PATCHではなく置換動作。
  * 2026-09-25の設計判断: このアプリがInventory Itemの唯一の書き込み元であり
  * (eBay側の管理画面から直接編集されることを想定しない、Phase1の運用方針)、
@@ -182,17 +184,66 @@ export async function createOffer(
     // 2026-09-25追加の修正: eBayのエラーレスポンス自体にparameters[].name === 'offerId'として
     // 既存のOffer IDが含まれているため、まずそちらを優先して使う(実機確認済み、確実)。
     // 取れなかった場合のみGET検索にフォールバックする。
+    // 2026-09-26追加の修正: 既存Offerをそのまま再利用すると、前回の失敗/中断時点の
+    // 古い価格・数量・説明文が残ったままPublishされてしまう(今回入力した最新の値が
+    // 反映されない)。そのため、既存Offerが見つかった場合は必ずupdateOffer(PUT)で
+    // 最新の値へ同期してから返す。
     if (res.status === 400 && text.includes('25002')) {
       const offerIdFromError = extractOfferIdFromErrorBody(text);
-      if (offerIdFromError) return { offerId: offerIdFromError };
-      const existing = await findExistingOfferId(accessToken, params.sku, params.marketplaceId);
-      if (existing) return { offerId: existing };
+      const existingOfferId = offerIdFromError ?? (await findExistingOfferId(accessToken, params.sku, params.marketplaceId));
+      if (existingOfferId) {
+        await updateOffer(accessToken, existingOfferId, params);
+        return { offerId: existingOfferId };
+      }
     }
     throw new Error(`eBay Inventory API(offer)の作成に失敗しました (${res.status}): ${text}`);
   }
 
   const json = (await res.json()) as { offerId: string };
   return { offerId: json.offerId };
+}
+
+/**
+ * §71(2026-09-26追加): 既にOfferが存在する場合(createOfferが25002を検出した場合)に、
+ * そのOfferを最新の入力値(価格・数量・ポリシー・説明文等)へ同期するためのPUT呼び出し。
+ * eBay Sell Inventory APIの `PUT /offer/{offerId}` は置換動作(createOrReplaceInventoryItemと
+ * 同様)なので、bodyはcreateOfferと同じ内容を送ればよい。
+ */
+export async function updateOffer(accessToken: string, offerId: string, params: CreateOfferParams): Promise<void> {
+  assertValidSku(params.sku);
+
+  const body = {
+    sku: params.sku,
+    marketplaceId: params.marketplaceId,
+    format: 'FIXED_PRICE',
+    availableQuantity: params.quantity,
+    categoryId: params.categoryId,
+    listingDescription: params.listingDescriptionHtml,
+    listingPolicies: {
+      paymentPolicyId: params.paymentPolicyId,
+      fulfillmentPolicyId: params.fulfillmentPolicyId,
+      returnPolicyId: params.returnPolicyId,
+    },
+    pricingSummary: {
+      price: { value: params.price.toFixed(2), currency: params.currency },
+    },
+    merchantLocationKey: params.merchantLocationKey,
+  };
+
+  const res = await fetch(`${getEbayApiBaseUrl()}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'Content-Language': 'en-US',
+      'Accept-Language': 'en-US',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 204 || res.ok) return;
+  const text = await res.text().catch(() => '');
+  throw new Error(`eBay Inventory API(offer更新)に失敗しました (${res.status}): ${text}`);
 }
 
 /**
