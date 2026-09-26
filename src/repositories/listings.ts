@@ -462,6 +462,7 @@ export interface ListingOfferUpdateDetail {
   ebayOfferId: string | null;
   marketplaceId: string;
   categoryId: string | null;
+  price: string | null;
   currency: string | null;
   quantity: number | null;
   merchantLocationKey: string | null;
@@ -477,7 +478,7 @@ export async function getListingForOfferUpdate(listingId: string): Promise<Listi
     .from('listings')
     .select(
       `id, listing_draft_id, sku, status, ebay_offer_id, marketplace_id, category_id,
-       listing_draft:listing_drafts ( currency, quantity, merchant_location_key,
+       listing_draft:listing_drafts ( price, currency, quantity, merchant_location_key,
          payment_policy_id, fulfillment_policy_id, return_policy_id, description_html )`,
     )
     .eq('id', listingId)
@@ -486,6 +487,7 @@ export async function getListingForOfferUpdate(listingId: string): Promise<Listi
   if (!data) return null;
 
   type DraftJoin = {
+    price: number | string | null;
     currency: string | null;
     quantity: number | null;
     merchant_location_key: string | null;
@@ -505,6 +507,7 @@ export async function getListingForOfferUpdate(listingId: string): Promise<Listi
     ebayOfferId: (data.ebay_offer_id as string | null) ?? null,
     marketplaceId: data.marketplace_id as string,
     categoryId: (data.category_id as string | null) ?? null,
+    price: draft?.price === null || draft?.price === undefined ? null : String(draft.price),
     currency: draft?.currency ?? null,
     quantity: draft?.quantity ?? null,
     merchantLocationKey: draft?.merchant_location_key ?? null,
@@ -524,6 +527,19 @@ export async function updateDraftPriceOnly(listingDraftId: string, price: number
   const { error } = await supabase
     .from('listing_drafts')
     .update({ price, updated_at: new Date().toISOString() })
+    .eq('id', listingDraftId);
+  if (error) throw error;
+}
+
+/**
+ * §110 step12(2026-09-26追加): 在庫同期機能。
+ * 数量改定成功後、listing_drafts.quantityを新しい値へ更新しておく(updateDraftPriceOnlyと同じ考え方)。
+ */
+export async function updateDraftQuantityOnly(listingDraftId: string, quantity: number): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listing_drafts')
+    .update({ quantity, updated_at: new Date().toISOString() })
     .eq('id', listingDraftId);
   if (error) throw error;
 }

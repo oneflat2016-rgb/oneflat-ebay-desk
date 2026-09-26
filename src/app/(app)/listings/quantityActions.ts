@@ -6,29 +6,28 @@ import { updateOffer } from '@/services/ebay/inventory';
 import { resolveOfferUpdateContext } from './offerUpdateHelpers';
 
 /**
- * §110 step12(2026-09-26): 出品済みListing一覧画面からの価格改定。
- * eBay Sell Inventory APIの `PUT /offer/{offerId}` は置換動作なので、価格だけでなく
- * カテゴリー・保管場所・各種ポリシー・説明文HTMLもあわせて送る必要がある
- * (services/ebay/inventory.tsのupdateOffer参照)。共通の事前チェック・説明文解決は
- * offerUpdateHelpers.tsのresolveOfferUpdateContextにまとめてある。
+ * §110 step12(2026-09-26): 出品済みListing一覧画面からの在庫同期(数量変更)。
+ * priceActions.tsの価格改定と同じ設計(eBay Offerの `PUT /offer/{offerId}` は置換動作)。
+ * 共通の事前チェック・説明文解決はofferUpdateHelpers.tsのresolveOfferUpdateContextを使う。
+ * 数量は0(在庫切れとして表示したい場合)も許可する。
  */
-export interface UpdateListingPriceResult {
+export interface UpdateListingQuantityResult {
   ok: boolean;
   error?: string;
 }
 
-export async function updateListingPrice(
+export async function updateListingQuantity(
   listingId: string,
-  newPriceInput: string,
-): Promise<UpdateListingPriceResult> {
+  newQuantityInput: string,
+): Promise<UpdateListingQuantityResult> {
   const profile = await getCurrentProfile();
   if (!profile) {
     return { ok: false, error: 'ログインが必要です。' };
   }
 
-  const newPrice = Number(newPriceInput);
-  if (!newPriceInput || Number.isNaN(newPrice) || newPrice <= 0) {
-    return { ok: false, error: '価格は0より大きい数値で入力してください。' };
+  const newQuantity = Number(newQuantityInput);
+  if (newQuantityInput === '' || !Number.isInteger(newQuantity) || newQuantity < 0) {
+    return { ok: false, error: '数量は0以上の整数で入力してください。' };
   }
 
   const resolved = await resolveOfferUpdateContext(listingId, profile.organizationId);
@@ -37,13 +36,17 @@ export async function updateListingPrice(
   }
   const { detail, accessToken, descriptionHtml } = resolved.context;
 
+  if (!detail.price) {
+    return { ok: false, error: '現在の価格が取得できないため、安全のため更新を中止しました。' };
+  }
+
   try {
     await updateOffer(accessToken, detail.ebayOfferId as string, {
       sku: detail.sku,
       categoryId: detail.categoryId as string,
-      price: newPrice,
+      price: Number(detail.price),
       currency: detail.currency ?? 'USD',
-      quantity: detail.quantity ?? 1,
+      quantity: newQuantity,
       merchantLocationKey: detail.merchantLocationKey as string,
       paymentPolicyId: detail.paymentPolicyId as string,
       fulfillmentPolicyId: detail.fulfillmentPolicyId as string,
@@ -53,13 +56,13 @@ export async function updateListingPrice(
     });
 
     if (detail.listingDraftId) {
-      await listingsRepo.updateDraftPriceOnly(detail.listingDraftId, newPrice);
+      await listingsRepo.updateDraftQuantityOnly(detail.listingDraftId, newQuantity);
     }
 
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : '不明なエラーが発生しました。';
-    console.error('[updateListingPrice] failed', message);
+    console.error('[updateListingQuantity] failed', message);
     return { ok: false, error: message };
   }
 }
