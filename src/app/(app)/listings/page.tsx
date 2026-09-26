@@ -4,6 +4,7 @@ import { buildEbayItemUrl } from '@/services/ebay/auth';
 import { PriceEditCell } from '@/components/listing/PriceEditCell';
 import { QuantityEditCell } from '@/components/listing/QuantityEditCell';
 import { EndListingButton } from '@/components/listing/EndListingButton';
+import { RelistButton } from '@/components/listing/RelistButton';
 
 /**
  * §110 step12(2026-09-26): 出品済みListing管理画面の第一段階(一覧表示のみ)。
@@ -26,7 +27,7 @@ export default async function ListingsIndexPage() {
           </div>
           <h1 style={{ fontSize: 'clamp(1.5rem,3vw,2.1rem)' }}>出品済みListing一覧</h1>
           <p className="subnote" style={{ maxWidth: '60ch' }}>
-            現在eBayへ出品済み(Publish成功済み)のListingです。価格・数量は出品中(ACTIVE)のものだけその場で変更できます。「終了する」は取り消せない操作です。再出品は今後追加予定です。
+            現在eBayへ出品済み(Publish成功済み)のListingです。価格・数量は出品中(ACTIVE)のものだけその場で変更できます。「終了する」は取り消せない操作です。終了済みのものは「再出品する」で出し直せます。
           </p>
         </div>
         <Link href="/listings/new" className="btn primary">
@@ -86,6 +87,7 @@ export default async function ListingsIndexPage() {
                   </td>
                   <td style={{ padding: '8px 10px' }}>
                     <EndListingButton listingId={listing.id} editable={listing.status === 'ACTIVE'} />
+                    <RelistButton listingId={listing.id} editable={listing.status === 'ENDED'} />
                   </td>
                 </tr>
               ))}

@@ -585,6 +585,45 @@ export async function markListingEnded(listingId: string): Promise<void> {
 }
 
 /**
+ * §110 step12(2026-09-26追加): 再出品機能。
+ * eBay Sell Inventory APIのwithdrawOfferはOffer自体を削除するわけではなく、
+ * 「非公開(unpublished)」の状態に戻すだけ。そのため再出品は、新しくInventory Item/Offerを
+ * 作り直すのではなく、同じOffer IDに対してpublishOfferをもう一度呼ぶだけでよい
+ * (eBayが新しいListing IDを発行する)。
+ */
+export interface ListingForRelist {
+  id: string;
+  productId: string;
+  listingDraftId: string | null;
+  sku: string;
+  status: 'ACTIVE' | 'ENDED' | 'SOLD_OUT' | 'ERROR';
+  ebayOfferId: string | null;
+  marketplaceId: string;
+  categoryId: string | null;
+}
+
+export async function getListingForRelist(listingId: string): Promise<ListingForRelist | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .select('id, product_id, listing_draft_id, sku, status, ebay_offer_id, marketplace_id, category_id')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    productId: data.product_id as string,
+    listingDraftId: (data.listing_draft_id as string | null) ?? null,
+    sku: data.sku as string,
+    status: data.status as ListingForRelist['status'],
+    ebayOfferId: (data.ebay_offer_id as string | null) ?? null,
+    marketplaceId: data.marketplace_id as string,
+    categoryId: (data.category_id as string | null) ?? null,
+  };
+}
+
+/**
  * §110 step12(2026-09-26追加の修正): Publish時に組み立てた説明文HTML(buildDescriptionHtml)を
  * listing_drafts.description_htmlへ保存する。
  * これまでPublish処理はeBayへ渡すためだけにHTMLをその場で組み立てており、DBへは
