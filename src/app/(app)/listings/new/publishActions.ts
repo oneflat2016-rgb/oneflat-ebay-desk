@@ -116,6 +116,10 @@ export async function publishListingToEbay(
     }
 
     const descriptionHtml = buildDescriptionHtml(state, false);
+    // 2026-09-26追加の修正: 価格改定など後続のOffer更新機能が説明文を参照できるよう、
+    // ここでlisting_drafts.description_htmlへも保存しておく(これまでeBayへ渡すためだけに
+    // その場で組み立てるだけでDBには保存していなかった)。
+    await listingsRepo.updateDraftDescriptionHtml(identity.draftId, descriptionHtml);
 
     // §4: Inventory Item -----------------------------------------------
     await createOrReplaceInventoryItem(accessToken, {

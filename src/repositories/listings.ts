@@ -527,3 +527,23 @@ export async function updateDraftPriceOnly(listingDraftId: string, price: number
     .eq('id', listingDraftId);
   if (error) throw error;
 }
+
+/**
+ * §110 step12(2026-09-26追加の修正): Publish時に組み立てた説明文HTML(buildDescriptionHtml)を
+ * listing_drafts.description_htmlへ保存する。
+ * これまでPublish処理はeBayへ渡すためだけにHTMLをその場で組み立てており、DBへは
+ * 保存していなかった(§80の自動保存が「保存」ボタンの押下時にしかdraftPatchを送らず、
+ * そのdraftPatchにdescriptionHtmlが含まれていなかったため)。
+ * その結果、価格改定機能(getListingForOfferUpdate)が「説明文が空」と判定して
+ * 更新を安全側で中止してしまう不具合があった。Publish/再Publishのたびにここで
+ * 保存しておくことで、次回以降のOffer更新(価格改定・在庫同期など)で説明文を
+ * 正しく参照できるようにする。
+ */
+export async function updateDraftDescriptionHtml(listingDraftId: string, descriptionHtml: string): Promise<void> {
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from('listing_drafts')
+    .update({ description_html: descriptionHtml, updated_at: new Date().toISOString() })
+    .eq('id', listingDraftId);
+  if (error) throw error;
+}
