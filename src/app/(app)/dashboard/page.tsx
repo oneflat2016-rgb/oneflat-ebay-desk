@@ -21,6 +21,9 @@ export default function DashboardPage() {
         <Link href="/listings" className="btn">
           出品済みListing一覧を見る
         </Link>
+        <Link href="/sales" className="btn">
+          販売履歴を見る
+        </Link>
       </div>
     </main>
   );

@@ -124,6 +124,16 @@ npm run dev
 
 Phase 3(Claude: 商品画像解析→AIタイトル生成→AI説明文下書き生成→出品前AIチェック)がこれで一通り完了。
 
+- **ONEFLAT販売履歴データベース(指示書§10・Phase4・2026-09-28追加)**: `/sales` に「販売履歴」画面を追加した。DBのテーブル自体(`orders`/`order_items`/`finance_transactions`/`sync_jobs`)はもともと用意されていたが、eBay側との連携が未実装だったため、今回実装した。
+  - `src/services/ebay/fulfillment.ts` の `fetchRecentOrders`: eBay Sell Fulfillment API(`GET /sell/fulfillment/v1/order`)から注文を取得(ページネーション対応、前回同期以降の注文だけを`creationdate`フィルタで絞り込み)。
+  - `src/services/ebay/finances.ts` の `fetchRecentTransactions`: eBay Sell Finances API(`GET /sell/finances/v1/transaction`)から取引を取得し、取引本体と各手数料明細(`marketplaceFees`)をそれぞれ別レコードとして展開する。
+  - `src/repositories/orders.ts`: 取得結果を`orders`/`order_items`/`finance_transactions`へupsert保存する(§54: eBay APIを履歴DB代わりにしない)。`order_items`は注文明細のSKUから`listings`テーブルと突き合わせ、一致すれば`listing_id`/`product_id`を紐づける。マッチした出品の`listings.sold_at`が未設定であれば、注文日を初回販売日として記録する。
+  - `src/repositories/syncJobs.ts`: `sync_jobs`テーブルへ同期結果を記録し、次回同期時は前回成功時点のcursor(最新の注文日/取引日)以降だけを取得する(毎回全期間を取り直さない)。
+  - APIルート: `POST /api/ebay/sync/orders`・`POST /api/ebay/sync/finances`(ADMIN/LISTERのみ)。`/sales` 画面の「eBayと同期」ボタン(`src/components/sales/SalesSyncButtons.tsx`)から順番に呼び出す。
+  - `src/repositories/salesHistory.ts`: `order_items`を`orders`・`listings`(タイトル)・`finance_transactions`(手数料合計、注文単位)と突き合わせて一覧化する読み取り専用処理。
+  - **追加のDBセットアップが必要**: `supabase/orders_sync_setup.sql` をSupabaseのSQL Editorで実行してください(`order_items`の再同期時の重複防止用ユニークインデックス等)。
+  - **未実装・今後の課題**: 手数料合計は現状「注文単位」であり、1注文に複数商品が含まれる場合の明細ごとの按分はしていない。また原価(仕入れ値)は`products.cost_price`列がDBにすでに存在するものの、出品フォーム側にまだ入力欄が無いため、利益計算(§16、Phase5)にはこの列を使った入力導線の追加が必要。§11(自社販売実績照合: 新しい商品を解析した際にこのDBから類似商品を検索する機能)は次のステップとして未着手。
+
 ## まだ実装されていないもの(意図的に未実装)
 
 このスキャフォールドは「型・ディレクトリ構成・サービス層の輪郭」を先に作り、実データ連携は指示書§110の順序どおり後続フェーズで実装する方針です。
@@ -168,7 +178,7 @@ Phase 3(Claude: 商品画像解析→AIタイトル生成→AI説明文下書き
 「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づき、以降は以下の順で進める。
 
 - [x] Phase 3(Claude): 商品画像解析(§6) → AIタイトル生成(§12) → AI説明文の下書き生成(§13) → **出品前AIチェック(§24・2026-09-26実装、Phase 3完了)**
-- [ ] Phase 4(次はここから): ONEFLAT販売履歴データベース(§10)・自社販売実績照合(§11)
+- [~] Phase 4: **ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期)** → 次: 自社販売実績照合(§11)
 - [ ] Phase 5: AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21)・売れない商品の改善提案(§35)
 - [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)
 

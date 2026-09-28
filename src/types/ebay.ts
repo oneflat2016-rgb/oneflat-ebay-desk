@@ -84,3 +84,45 @@ export interface EbayPublishResult {
   offerId: string;
   sku: string;
 }
+
+/**
+ * §10(最新実装指示書)/Phase2 §21-22: eBay Sell Fulfillment API(GET /order)が返す
+ * 注文情報のうち、ONEFLAT販売履歴DBへ保存する項目だけを抜き出した型。
+ * rawはそのまま保存し(orders.raw_json)、将来欲しい項目が増えても再取得なしで
+ * 取り出せるようにする(§54)。
+ */
+export interface EbayOrderLineItem {
+  ebayLineItemId: string;
+  sku: string | null;
+  quantity: number;
+  sellingPriceValue: number | null;
+  sellingPriceCurrency: string | null;
+  deliveryCostValue: number | null;
+}
+
+export interface EbayOrder {
+  ebayOrderId: string;
+  buyerCountry: string | null;
+  orderStatus: string | null;
+  creationDate: string | null;
+  totalAmountValue: number | null;
+  totalAmountCurrency: string | null;
+  lineItems: EbayOrderLineItem[];
+  raw: unknown;
+}
+
+/**
+ * §10/Phase2 §23: eBay Sell Finances API(GET /transaction)が返す取引情報。
+ * 1回のtransactionに複数のmarketplaceFees(手数料明細)が含まれることがあるため、
+ * トップレベルのtransactionと、fee明細それぞれを別レコードとして扱えるようにする。
+ */
+export interface EbayFinanceTransaction {
+  ebayTransactionId: string;
+  ebayOrderId: string | null;
+  transactionType: string | null;
+  amountValue: number | null;
+  amountCurrency: string | null;
+  feeType: string | null;
+  transactionDate: string | null;
+  raw: unknown;
+}

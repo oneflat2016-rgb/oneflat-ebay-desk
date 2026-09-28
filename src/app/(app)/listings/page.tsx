@@ -30,9 +30,14 @@ export default async function ListingsIndexPage() {
             現在eBayへ出品済み(Publish成功済み)のListingです。価格・数量は出品中(ACTIVE)のものだけその場で変更できます。「終了する」は取り消せない操作です。終了済みのものは「再出品する」で出し直せます。
           </p>
         </div>
-        <Link href="/listings/new" className="btn primary">
-          + 新しく出品する
-        </Link>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <Link href="/sales" className="btn">
+            販売履歴を見る
+          </Link>
+          <Link href="/listings/new" className="btn primary">
+            + 新しく出品する
+          </Link>
+        </div>
       </header>
 
       {listings.length === 0 ? (
