@@ -26,6 +26,7 @@ import { ColorTemplateSection } from './ColorTemplateSection';
 import { SimilarSalesSection } from './SimilarSalesSection';
 import { AiPriceSuggestionSection } from './AiPriceSuggestionSection';
 import { ProfitSimulationSection } from './ProfitSimulationSection';
+import { ShippingSuggestionSection } from './ShippingSuggestionSection';
 import { PreviewPanel } from './PreviewPanel';
 
 type SaveStatus =
@@ -290,6 +291,24 @@ export function ListingForm({
           quantity={state.quantity}
           costPriceJpy={state.costPriceJpy}
           onCostPriceChange={(costPriceJpy) => patch({ costPriceJpy })}
+        />
+
+        <ShippingSuggestionSection
+          weightG={state.weightG}
+          widthMm={state.widthMm}
+          heightMm={state.heightMm}
+          depthMm={state.depthMm}
+          destinationCountry={state.destinationCountry}
+          brand={state.brand || null}
+          model={state.model || null}
+          categoryName={state.categoryName || null}
+          price={state.price}
+          selectedShippingMethod={state.selectedShippingMethod}
+          fulfillmentPolicyId={state.fulfillmentPolicyId}
+          onWeightSizeChange={(patchValue) => patch(patchValue)}
+          onDestinationChange={(destinationCountry) => patch({ destinationCountry })}
+          onSelectShippingMethod={(selectedShippingMethod) => patch({ selectedShippingMethod })}
+          onSelectFulfillmentPolicy={(fulfillmentPolicyId) => patch({ fulfillmentPolicyId })}
         />
 
         <AiDescriptionDraftSection

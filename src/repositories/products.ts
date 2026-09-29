@@ -27,6 +27,10 @@ export interface ProductRecord {
   includedItemsEn: string | null;
   costPrice: number | null;
   costCurrency: string | null;
+  weightG: number | null;
+  widthMm: number | null;
+  heightMm: number | null;
+  depthMm: number | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +50,10 @@ export interface ProductPatch {
   includedItemsEn?: string | null;
   costPrice?: number | null;
   costCurrency?: string | null;
+  weightG?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
+  depthMm?: number | null;
 }
 
 // DBの行(snake_case) <-> アプリ内表現(camelCase)の変換
@@ -66,6 +74,10 @@ function fromRow(row: Record<string, unknown>): ProductRecord {
     includedItemsEn: (row.included_items_en as string | null) ?? null,
     costPrice: row.cost_price === null || row.cost_price === undefined ? null : Number(row.cost_price),
     costCurrency: (row.cost_currency as string | null) ?? null,
+    weightG: row.weight_g === null || row.weight_g === undefined ? null : Number(row.weight_g),
+    widthMm: row.width_mm === null || row.width_mm === undefined ? null : Number(row.width_mm),
+    heightMm: row.height_mm === null || row.height_mm === undefined ? null : Number(row.height_mm),
+    depthMm: row.depth_mm === null || row.depth_mm === undefined ? null : Number(row.depth_mm),
     createdBy: row.created_by as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -87,6 +99,10 @@ function patchToRow(patch: ProductPatch): Record<string, unknown> {
   if ('includedItemsEn' in patch) row.included_items_en = patch.includedItemsEn;
   if ('costPrice' in patch) row.cost_price = patch.costPrice;
   if ('costCurrency' in patch) row.cost_currency = patch.costCurrency;
+  if ('weightG' in patch) row.weight_g = patch.weightG;
+  if ('widthMm' in patch) row.width_mm = patch.widthMm;
+  if ('heightMm' in patch) row.height_mm = patch.heightMm;
+  if ('depthMm' in patch) row.depth_mm = patch.depthMm;
   return row;
 }
 

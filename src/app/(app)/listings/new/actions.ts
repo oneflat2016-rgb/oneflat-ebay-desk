@@ -55,6 +55,11 @@ export async function saveListingDraft(
       // §16-17(最新実装指示書, Phase5): 利益シミュレーション用の原価(円)
       costPrice: state.costPriceJpy.trim() ? Number(state.costPriceJpy) : null,
       costCurrency: 'JPY',
+      // §21-22(最新実装指示書, Phase5): 配送提案用の重量・サイズ
+      weightG: state.weightG.trim() ? Number(state.weightG) : null,
+      widthMm: state.widthMm.trim() ? Number(state.widthMm) : null,
+      heightMm: state.heightMm.trim() ? Number(state.heightMm) : null,
+      depthMm: state.depthMm.trim() ? Number(state.depthMm) : null,
     };
 
     let productId = identity.productId;
@@ -101,6 +106,9 @@ export async function saveListingDraft(
       price: state.price || null,
       currency: state.currency || null,
       quantity: state.quantity,
+      // §21(最新実装指示書, Phase5): 配送提案の基準国・担当者が選んだ配送方法
+      destinationCountry: state.destinationCountry || null,
+      selectedShippingMethod: state.selectedShippingMethod,
       updatedBy: profile.id,
     };
 

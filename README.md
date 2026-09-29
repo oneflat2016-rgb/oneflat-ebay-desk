@@ -155,7 +155,17 @@ Phase 4はこれで一通り完了(§10・§11)。
   - §25と同じ方針で、この試算は価格欄を自動で書き換えない(あくまで「原価に対してこの価格でいくら残るか」を見るための参考情報)。
   - **既知の制限**: eBay Sandboxにまだ実績データが無いため、手数料率は現状「一般的な目安13%」にフォールバックした状態でしか確認できていない。本番で実績が溜まった後の再確認が必要。
 
-次はPhase 5の残り(§21 配送提案・§35 売れない商品の改善提案)。
+- **配送提案(指示書§21-22・Phase5・2026-09-29追加)**: `/listings/new` の利益シミュレーションの直後に「配送提案」セクションを追加した(`src/components/listing/ShippingSuggestionSection.tsx`)。
+  - §22: 商品の重量(g)・縦横高さ(mm)の入力欄を新設し、`products.weight_g`/`width_mm`/`height_mm`/`depth_mm`(既存のDB列、これまでUIから未接続だった)へ保存するようにした。
+  - §21の最重要方針として、Claudeに送料そのものを推測させない設計にした。まずシステム側(`src/lib/shipping/recommendationEngine.ts`)で、ADMINが登録した料金表(`shipping_rate_rules`、初期値としてFedEx/EMS/Economyの目安を投入済み)と自社の過去発送実績(`shipping_actuals`、`src/repositories/shipping.ts`)から配送候補(最大3件、送料・配送日数・追跡/保険有無・スコア・ラベル)を計算し、Claude(`src/services/ai/suggestShipping.ts`)には「与えられた候補の比較・説明」だけを行わせる。ClaudeがAPIレスポンスで指定した候補名が実際の候補一覧に無い場合は、システムのスコア最上位候補へ無言でフォールバックする(サーバー側でvalidation、§104と同じ「AIの出力を無条件に信用しない」方針)。
+  - APIルート: `POST /api/shipping/recommend`。ログイン必須。料金表が無い配送先や該当重量帯が無い場合は404でエラーメッセージを返し、出品作業自体は止めない(既存のPricingSection等はそのまま入力を続けられる)。`ANTHROPIC_API_KEY`未設定時はAIコメント無しで候補のみ返す。
+  - 候補をクリックしても、この時点ではeBay側には何も反映しない。「この配送方法を選択」で`listing_drafts.selected_shipping_method`に保存するだけ(§21-20)。
+  - 推奨候補のcarrier名と、既存のBusiness Policies(`GET /api/ebay/policies`を再利用)の名称を単純な部分一致で突き合わせ、一致すれば「おすすめBusiness Policy」として表示する。「このポリシーを使用」ボタンを押した場合のみ`fulfillmentPolicyId`(Business Policiesセクションと共通の状態)を書き換える(§21-11/§21-13: AIやシステムが担当者の確認なしにBusiness Policyを変更しない)。
+  - 配送先想定国(`listing_drafts.destination_country`、デフォルト`US`)は5カ国程度の選択式にしてある(§21-17)。
+  - **既知の制限・今回の簡略化点**: 指示書が挙げる`shipping_recommendations`(候補の永続化用テーブル)・`shipping_history`(発送実績専用の新テーブル)は今回作成せず、既存の`shipping_actuals`テーブル(§10で用意済み)をカテゴリー名経由で参照する形で代用した。梱包後重量/梱包サイズと商品自体の重量/サイズの分離(§21-15)も今回は行わず、商品の重量/サイズをそのまま配送計算に使っている。eBay Sandboxには発送実績データがまだ無いため、候補は現状「登録料金表のみ」に基づく参考値でしか確認できていない(本番で実績が溜まった後の再確認が必要)。料金表(`shipping_rate_rules`)の実際の値もあくまで初期の目安であり、ADMINが実際の契約条件に合わせてSQL Editorから更新する必要がある。
+  - **追加のDBセットアップが必要**: `supabase/shipping_setup.sql` をSupabaseのSQL Editorで実行してください(`listing_drafts`への列追加、`shipping_rate_rules`テーブル作成+初期値投入)。
+
+次はPhase 5の残り(§35 売れない商品の改善提案)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -168,7 +178,6 @@ Phase 4はこれで一通り完了(§10・§11)。
 - 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ。Publish時は`sort_order`順(is_primary優先)で画像を送る)
 - eBay Media API(EPS) — 未実装のまま(step11の設計判断により、Sell Inventory APIには署名付きURLを直接渡しているため現時点では不要)
 - Claude APIによるAspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成・説明文下書き生成・出品前AIチェック・AI価格提案は実装済み)
-- §22(商品サイズ・重量: 重量/縦/横/高さ)の入力欄自体が未実装
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
 
@@ -202,7 +211,7 @@ Phase 4はこれで一通り完了(§10・§11)。
 
 - [x] Phase 3(Claude): 商品画像解析(§6) → AIタイトル生成(§12) → AI説明文の下書き生成(§13) → **出品前AIチェック(§24・2026-09-26実装、Phase 3完了)**
 - [x] Phase 4: **ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期)** → **自社販売実績照合(§11・2026-09-29実装、Phase 4完了)**
-- [~] Phase 5: **AI価格提案(§15)・利益シミュレーション(§16-17)(2026-09-29実装)** → 次: 配送提案(§21)・売れない商品の改善提案(§35)
+- [~] Phase 5: **AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21-22)(2026-09-29実装)** → 次: 売れない商品の改善提案(§35)
 - [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)

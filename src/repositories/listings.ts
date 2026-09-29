@@ -31,6 +31,10 @@ export interface ListingDraftRecord {
   price: string | null;
   currency: string | null;
   quantity: number;
+  /** §21(最新実装指示書, Phase5): 配送提案の基準国・担当者が選んだ配送方法・料金取得日時 */
+  destinationCountry: string | null;
+  selectedShippingMethod: string | null;
+  shippingRateCheckedAt: string | null;
   status: 'DRAFT' | 'READY' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
   createdBy: string;
   updatedBy: string | null;
@@ -54,6 +58,9 @@ export interface ListingDraftPatch {
   price?: string | null;
   currency?: string | null;
   quantity?: number;
+  destinationCountry?: string | null;
+  selectedShippingMethod?: string | null;
+  shippingRateCheckedAt?: string | null;
   status?: ListingDraftRecord['status'];
   updatedBy?: string;
 }
@@ -77,6 +84,9 @@ function fromRow(row: Record<string, unknown>): ListingDraftRecord {
     price: row.price === null || row.price === undefined ? null : String(row.price),
     currency: (row.currency as string | null) ?? null,
     quantity: (row.quantity as number | null) ?? 1,
+    destinationCountry: (row.destination_country as string | null) ?? null,
+    selectedShippingMethod: (row.selected_shipping_method as string | null) ?? null,
+    shippingRateCheckedAt: (row.shipping_rate_checked_at as string | null) ?? null,
     status: row.status as ListingDraftRecord['status'],
     createdBy: row.created_by as string,
     updatedBy: (row.updated_by as string | null) ?? null,
@@ -105,6 +115,9 @@ function patchToRow(patch: ListingDraftPatch): Record<string, unknown> {
   }
   if ('currency' in patch) row.currency = patch.currency;
   if ('quantity' in patch) row.quantity = patch.quantity;
+  if ('destinationCountry' in patch) row.destination_country = patch.destinationCountry;
+  if ('selectedShippingMethod' in patch) row.selected_shipping_method = patch.selectedShippingMethod;
+  if ('shippingRateCheckedAt' in patch) row.shipping_rate_checked_at = patch.shippingRateCheckedAt;
   if ('status' in patch) row.status = patch.status;
   if ('updatedBy' in patch) row.updated_by = patch.updatedBy;
   return row;

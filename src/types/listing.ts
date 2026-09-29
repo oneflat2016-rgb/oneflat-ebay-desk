@@ -122,6 +122,30 @@ export interface ListingFormState {
    */
   costPriceJpy: string;
 
+  /**
+   * §21-22(最新実装指示書, Phase5): 配送提案用の商品重量・サイズ。
+   * DBのproducts.weight_g/width_mm/height_mm/depth_mmへ対応する(これらの列は
+   * §22の実装前からschema.sqlに存在していたが、UIから未接続だった)。
+   * 文字列で保持し(price/costPriceJpy同様)、保存時に数値化する。
+   */
+  weightG: string;
+  widthMm: string;
+  heightMm: string;
+  depthMm: string;
+
+  /**
+   * §21: 配送提案を計算する際の配送先想定国。DBのlisting_drafts.destination_countryへ対応する。
+   * 新規出品時点では購入者が決まっていないため、担当者が基準国を選んで試算する(§21-17)。
+   */
+  destinationCountry: string;
+
+  /**
+   * §21-20: 配送候補から担当者が選んだ配送方法(表示名)。この時点ではeBay設定は変更せず、
+   * DBのlisting_drafts.selected_shipping_methodへ保存するだけ(§21-11: Business Policyの
+   * 実際の適用は引き続きBusiness Policiesセクションでの明示選択が必要)。
+   */
+  selectedShippingMethod: string | null;
+
   checklist: ChecklistState;
 
   templateColors: TemplateColors;
