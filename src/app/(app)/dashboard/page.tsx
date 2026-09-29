@@ -44,6 +44,9 @@ export default async function DashboardPage() {
         <Link href="/sales" className="btn">
           販売履歴を見る
         </Link>
+        <Link href="/improvements" className="btn">
+          改善提案を見る
+        </Link>
       </div>
     </main>
   );
