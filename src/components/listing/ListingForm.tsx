@@ -24,6 +24,7 @@ import { ChecklistSection } from './ChecklistSection';
 import { PrelistingAiCheckSection, type PrelistingCheckInput } from './PrelistingAiCheckSection';
 import { ColorTemplateSection } from './ColorTemplateSection';
 import { SimilarSalesSection } from './SimilarSalesSection';
+import { AiPriceSuggestionSection } from './AiPriceSuggestionSection';
 import { PreviewPanel } from './PreviewPanel';
 
 type SaveStatus =
@@ -266,6 +267,14 @@ export function ListingForm({
           brand={state.brand || null}
           model={state.model || null}
           categoryName={state.categoryName || null}
+        />
+
+        <AiPriceSuggestionSection
+          brand={state.brand || null}
+          model={state.model || null}
+          condition={state.ebayConditionDescription ?? null}
+          categoryName={state.categoryName || null}
+          onApplyPrice={(price) => patch({ price })}
         />
 
         <PricingSection
