@@ -96,3 +96,138 @@ function firstOf<T>(value: T | T[] | null | undefined): T | undefined {
   if (Array.isArray(value)) return value[0];
   return value ?? undefined;
 }
+
+// ============================================================
+// §11(最新実装指示書, Phase4): 自社販売実績照合
+// ============================================================
+
+export interface SimilarSoldItem {
+  orderItemId: string;
+  sku: string | null;
+  title: string | null;
+  brand: string | null;
+  model: string | null;
+  quantity: number;
+  salePrice: number | null;
+  currency: string | null;
+  creationDate: string | null;
+  orderStatus: string | null;
+}
+
+export interface FindSimilarSoldItemsParams {
+  brand?: string | null;
+  model?: string | null;
+  categoryName?: string | null;
+  limit?: number;
+}
+
+/**
+ * §11: 新しい商品を登録・出品するとき、brand/model(または無ければcategoryName)が
+ * 近い過去の自社販売実績(実際に売れたorder_items)を検索する。
+ * 値付けの参考情報として画面に出すだけで、Publish等の判断をブロックしない(§25と同じ考え方)。
+ *
+ * 検索の流れ:
+ *   1. products をbrand/model(部分一致, 大文字小文字区別なし)で絞り込む
+ *      (brand/modelどちらも無ければcategoryNameでlisting_draftsを絞り込む代替ルートを使う)
+ *   2. 該当productのlistings(sku)を取得
+ *   3. そのskuに一致するorder_items(実際に売れた明細)を、新しい順に返す
+ */
+export async function findSimilarSoldItems(
+  params: FindSimilarSoldItemsParams,
+): Promise<SimilarSoldItem[]> {
+  const limit = params.limit ?? 10;
+  const brand = params.brand?.trim() || null;
+  const model = params.model?.trim() || null;
+  const categoryName = params.categoryName?.trim() || null;
+
+  if (!brand && !model && !categoryName) {
+    return [];
+  }
+
+  const supabase = getSupabaseAdminClient();
+
+  let skus: string[] = [];
+
+  if (brand || model) {
+    let productQuery = supabase.from('products').select('id, brand, model');
+    if (brand && model) {
+      productQuery = productQuery.or(`brand.ilike.%${brand}%,model.ilike.%${model}%`);
+    } else if (brand) {
+      productQuery = productQuery.ilike('brand', `%${brand}%`);
+    } else if (model) {
+      productQuery = productQuery.ilike('model', `%${model}%`);
+    }
+    const { data: products, error: productError } = await productQuery.limit(200);
+    if (productError) throw productError;
+    const productIds = (products ?? []).map((p) => p.id as string);
+
+    if (productIds.length > 0) {
+      const { data: listingRows, error: listingError } = await supabase
+        .from('listings')
+        .select('sku')
+        .in('product_id', productIds);
+      if (listingError) throw listingError;
+      skus = Array.from(new Set((listingRows ?? []).map((l) => l.sku as string).filter(Boolean)));
+    }
+  } else if (categoryName) {
+    // brand/modelが無い場合の代替: listing_drafts.category_nameが近いものから、
+    // 紐づくproductのlistings(sku)を辿る。
+    const { data: draftRows, error: draftError } = await supabase
+      .from('listing_drafts')
+      .select('product_id')
+      .ilike('category_name', `%${categoryName}%`)
+      .limit(200);
+    if (draftError) throw draftError;
+    const productIds = Array.from(
+      new Set((draftRows ?? []).map((d) => d.product_id as string).filter(Boolean)),
+    );
+    if (productIds.length > 0) {
+      const { data: listingRows, error: listingError } = await supabase
+        .from('listings')
+        .select('sku')
+        .in('product_id', productIds);
+      if (listingError) throw listingError;
+      skus = Array.from(new Set((listingRows ?? []).map((l) => l.sku as string).filter(Boolean)));
+    }
+  }
+
+  if (skus.length === 0) {
+    return [];
+  }
+
+  const { data: itemRows, error: itemError } = await supabase
+    .from('order_items')
+    .select(
+      `id, sku, quantity, sale_price, currency,
+       order:orders ( order_status, creation_date ),
+       listing:listings ( product:products ( brand, model ), listing_draft:listing_drafts ( title ) )`,
+    )
+    .in('sku', skus)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (itemError) throw itemError;
+
+  return (itemRows ?? []).map((row): SimilarSoldItem => {
+    const order = firstOf(row.order) as
+      | { order_status: string | null; creation_date: string | null }
+      | undefined;
+    const listing = firstOf(row.listing) as
+      | { product?: unknown; listing_draft?: unknown }
+      | undefined;
+    const product = listing ? (firstOf(listing.product) as { brand?: string | null; model?: string | null } | undefined) : undefined;
+    const draft = listing ? (firstOf(listing.listing_draft) as { title?: string | null } | undefined) : undefined;
+
+    return {
+      orderItemId: row.id as string,
+      sku: (row.sku as string | null) ?? null,
+      title: draft?.title ?? null,
+      brand: product?.brand ?? null,
+      model: product?.model ?? null,
+      quantity: (row.quantity as number | null) ?? 1,
+      salePrice: row.sale_price === null || row.sale_price === undefined ? null : Number(row.sale_price),
+      currency: (row.currency as string | null) ?? null,
+      creationDate: order?.creation_date ?? null,
+      orderStatus: order?.order_status ?? null,
+    };
+  });
+}

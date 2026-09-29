@@ -23,6 +23,7 @@ import { DynamicAspectsSection } from './DynamicAspectsSection';
 import { ChecklistSection } from './ChecklistSection';
 import { PrelistingAiCheckSection, type PrelistingCheckInput } from './PrelistingAiCheckSection';
 import { ColorTemplateSection } from './ColorTemplateSection';
+import { SimilarSalesSection } from './SimilarSalesSection';
 import { PreviewPanel } from './PreviewPanel';
 
 type SaveStatus =
@@ -259,6 +260,12 @@ export function ListingForm({
           merchantLocationKey={state.merchantLocationKey}
           isAdmin={isAdmin}
           onChange={(patchValue) => patch(patchValue)}
+        />
+
+        <SimilarSalesSection
+          brand={state.brand || null}
+          model={state.model || null}
+          categoryName={state.categoryName || null}
         />
 
         <PricingSection
