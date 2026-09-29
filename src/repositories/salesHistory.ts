@@ -231,3 +231,72 @@ export async function findSimilarSoldItems(
     };
   });
 }
+
+// ============================================================
+// §16-17(最新実装指示書, Phase5): 利益シミュレーション補助
+// ============================================================
+
+export interface AverageFeeRateResult {
+  rate: number | null; // 例: 0.132 = 13.2%。実績が無い場合はnull
+  basedOnOrders: number; // 集計対象になった注文数(参考情報として画面に出す)
+}
+
+/**
+ * §16-17: 実際の自社の手数料実績から「手数料率」の目安を計算する。
+ * 販売金額合計に対する手数料合計の比率(注文単位。明細ごとの按分はしていない、§10の既知の制限と同じ)。
+ * 実績が無い場合はnullを返し、呼び出し元(利益シミュレーションUI)が一般的な目安率に
+ * フォールバックしていることを明示する。
+ */
+export async function getAverageFeeRate(): Promise<AverageFeeRateResult> {
+  const supabase = getSupabaseAdminClient();
+
+  const { data: orderRows, error: orderError } = await supabase
+    .from('orders')
+    .select('ebay_order_id, total_amount');
+  if (orderError) throw orderError;
+
+  const rows = orderRows ?? [];
+  const ebayOrderIds = rows
+    .map((r) => r.ebay_order_id as string | null)
+    .filter((id): id is string => Boolean(id));
+
+  if (ebayOrderIds.length === 0) {
+    return { rate: null, basedOnOrders: 0 };
+  }
+
+  const { data: feeRows, error: feeError } = await supabase
+    .from('finance_transactions')
+    .select('ebay_order_id, amount')
+    .eq('transaction_type', 'MARKETPLACE_FEE')
+    .in('ebay_order_id', ebayOrderIds);
+  if (feeError) throw feeError;
+
+  const feesByOrderId = new Map<string, number>();
+  for (const fee of feeRows ?? []) {
+    const orderId = fee.ebay_order_id as string | null;
+    if (!orderId) continue;
+    const amount = fee.amount === null ? 0 : Number(fee.amount);
+    feesByOrderId.set(orderId, (feesByOrderId.get(orderId) ?? 0) + amount);
+  }
+
+  let totalSales = 0;
+  let totalFees = 0;
+  let ordersWithFees = 0;
+  for (const row of rows) {
+    const orderId = row.ebay_order_id as string | null;
+    if (!orderId) continue;
+    const fee = feesByOrderId.get(orderId);
+    if (fee === undefined) continue; // 手数料データが無い注文は比率計算から除外する
+    const saleAmount = row.total_amount === null ? 0 : Number(row.total_amount);
+    if (saleAmount <= 0) continue;
+    totalSales += saleAmount;
+    totalFees += fee;
+    ordersWithFees += 1;
+  }
+
+  if (ordersWithFees === 0 || totalSales <= 0) {
+    return { rate: null, basedOnOrders: 0 };
+  }
+
+  return { rate: totalFees / totalSales, basedOnOrders: ordersWithFees };
+}

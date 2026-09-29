@@ -25,6 +25,8 @@ export interface ProductRecord {
   conditionNotesEn: string | null;
   includedItemsJa: string | null;
   includedItemsEn: string | null;
+  costPrice: number | null;
+  costCurrency: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -42,6 +44,8 @@ export interface ProductPatch {
   conditionNotesEn?: string | null;
   includedItemsJa?: string | null;
   includedItemsEn?: string | null;
+  costPrice?: number | null;
+  costCurrency?: string | null;
 }
 
 // DBの行(snake_case) <-> アプリ内表現(camelCase)の変換
@@ -60,6 +64,8 @@ function fromRow(row: Record<string, unknown>): ProductRecord {
     conditionNotesEn: (row.condition_notes_en as string | null) ?? null,
     includedItemsJa: (row.included_items_ja as string | null) ?? null,
     includedItemsEn: (row.included_items_en as string | null) ?? null,
+    costPrice: row.cost_price === null || row.cost_price === undefined ? null : Number(row.cost_price),
+    costCurrency: (row.cost_currency as string | null) ?? null,
     createdBy: row.created_by as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -79,6 +85,8 @@ function patchToRow(patch: ProductPatch): Record<string, unknown> {
   if ('conditionNotesEn' in patch) row.condition_notes_en = patch.conditionNotesEn;
   if ('includedItemsJa' in patch) row.included_items_ja = patch.includedItemsJa;
   if ('includedItemsEn' in patch) row.included_items_en = patch.includedItemsEn;
+  if ('costPrice' in patch) row.cost_price = patch.costPrice;
+  if ('costCurrency' in patch) row.cost_currency = patch.costCurrency;
   return row;
 }
 

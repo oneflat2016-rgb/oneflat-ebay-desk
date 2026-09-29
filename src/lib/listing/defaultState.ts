@@ -44,6 +44,7 @@ export function createSampleListingFormState(): ListingFormState {
     price: '',
     quantity: 1,
     currency: 'USD',
+    costPriceJpy: '',
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };
@@ -77,6 +78,7 @@ export function createEmptyListingFormState(): ListingFormState {
     price: '',
     quantity: 1,
     currency: 'USD',
+    costPriceJpy: '',
     checklist: {},
     templateColors: { border: '#000000', accent: '#fff100' },
   };

@@ -115,6 +115,13 @@ export interface ListingFormState {
   quantity: number;
   currency: string;
 
+  /**
+   * §16-17(最新実装指示書, Phase5): 利益シミュレーション用の原価。
+   * DBのproducts.cost_price/cost_currencyへ対応する。文字列で保持し(price同様)、
+   * 保存時に数値化する。円(JPY)前提(products.cost_currencyの既定値)。
+   */
+  costPriceJpy: string;
+
   checklist: ChecklistState;
 
   templateColors: TemplateColors;

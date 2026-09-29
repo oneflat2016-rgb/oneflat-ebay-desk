@@ -7,11 +7,11 @@
 
 1. **Supabase**: `audit_logs` テーブルにINSERTポリシーを追加する必要がある(元々SELECTのみだったため)。SQL Editorで以下を実行してください。
 
-   ```sql
+```sql
    create policy "audit_logs: same organization insert"
      on audit_logs for insert
      with check (organization_id = current_organization_id());
-   ```
+```
 
    他のテーブル(`listing_drafts`の`price`/`currency`/`quantity`列、`listings`テーブル)は既存の`schema.sql`にすでに含まれているため、追加のマイグレーションは不要です。
 
@@ -132,7 +132,30 @@ Phase 3(Claude: 商品画像解析→AIタイトル生成→AI説明文下書き
   - APIルート: `POST /api/ebay/sync/orders`・`POST /api/ebay/sync/finances`(ADMIN/LISTERのみ)。`/sales` 画面の「eBayと同期」ボタン(`src/components/sales/SalesSyncButtons.tsx`)から順番に呼び出す。
   - `src/repositories/salesHistory.ts`: `order_items`を`orders`・`listings`(タイトル)・`finance_transactions`(手数料合計、注文単位)と突き合わせて一覧化する読み取り専用処理。
   - **追加のDBセットアップが必要**: `supabase/orders_sync_setup.sql` をSupabaseのSQL Editorで実行してください(`order_items`の再同期時の重複防止用ユニークインデックス等)。
-  - **未実装・今後の課題**: 手数料合計は現状「注文単位」であり、1注文に複数商品が含まれる場合の明細ごとの按分はしていない。また原価(仕入れ値)は`products.cost_price`列がDBにすでに存在するものの、出品フォーム側にまだ入力欄が無いため、利益計算(§16、Phase5)にはこの列を使った入力導線の追加が必要。§11(自社販売実績照合: 新しい商品を解析した際にこのDBから類似商品を検索する機能)は次のステップとして未着手。
+  - **未実装・今後の課題**: 手数料合計は現状「注文単位」であり、1注文に複数商品が含まれる場合の明細ごとの按分はしていない。また原価(仕入れ値)は`products.cost_price`列を利用し、利益シミュレーション(§16-17・Phase5)で入力導線を追加済み。
+  - **eBay Sandbox特有の既知の制限**: Finances API(手数料同期)はSandbox環境では404になることが多い(Sandboxのアカウント種別によっては提供されていないため)。本番環境では動作する想定。注文同期(Fulfillment API)自体は影響を受けない。
+
+- **自社販売実績照合(指示書§11・Phase4・2026-09-29追加)**: `/listings/new` に「自社の過去の販売実績」セクションを追加した(`src/components/listing/SimilarSalesSection.tsx`)。「過去の類似販売実績を検索」ボタンを押すと、現在入力中のブランド・型番(どちらも未入力ならカテゴリー名)に近い、ONEFLATが過去に実際に販売した商品を§10の販売履歴DBから検索し、タイトル・ブランド/型番・個数・販売価格・注文日を一覧表示する。
+  - `src/repositories/salesHistory.ts` の `findSimilarSoldItems`: `products`をbrand/model(部分一致・大文字小文字区別なし)で絞り込み→該当する`products.id`に紐づく`listings.sku`を取得→そのSKUに一致する`order_items`(実際に売れた明細)を新しい順に返す。brand/modelがどちらも無い場合は`listing_drafts.category_name`の部分一致を代替ルートとして使う。
+  - APIルート: `POST /api/sales/similar`(ログイン済みなら誰でも参照可。閲覧専用の社内データのためRole制限なし)。
+  - §25と同じ方針で、この結果はあくまで値付けの参考情報であり、何かを自動で決定・ブロックすることはない。
+  - **既知の制限**: 現時点でeBay Sandboxのテスト注文が無い(`order_items`が0件)ため、実データでの動作確認はまだ行えていない。本番環境で実際に販売実績が蓄積された後に確認が必要。
+
+Phase 4はこれで一通り完了(§10・§11)。
+
+- **AI価格提案(指示書§15・Phase5・2026-09-29追加)**: `/listings/new` の価格入力欄の直前に「AI価格提案」セクションを追加した(`src/components/listing/AiPriceSuggestionSection.tsx`)。「AIに価格を提案してもらう」ボタンを押すと、サーバー側でまず§11(`findSimilarSoldItems`)と同じロジックで自社の過去の類似販売実績を取得し、それを最優先の根拠としてClaudeに価格(提案価格・目安レンジ・理由)を提案させる(`src/services/ai/suggestPrice.ts`)。自社の実績が無い場合は一般的な相場からの目安である旨を明示する(`basedOnOwnSales: false`)。
+  - APIルート: `POST /api/ai/suggest-price`。ログイン必須、`ANTHROPIC_API_KEY`未設定時は501。
+  - §25と同じ方針で、提案は価格欄を自動で書き換えない。「この価格を使う」ボタンを押した場合のみ`PricingSection`の価格欄に反映する。
+  - §104: 自社販売実績データ(DBから取得した文字列)はAIへのinstructionではなくDATAとして渡している。
+
+- **利益シミュレーション(指示書§16-17・Phase5・2026-09-29追加)**: `/listings/new` の価格入力欄の直後に「利益シミュレーション」セクションを追加した(`src/components/listing/ProfitSimulationSection.tsx`)。
+  - 原価(円)の入力欄を新設し、`products.cost_price`/`cost_currency`(既存のDB列、これまでUIから未接続だった)へ保存するようにした(`saveListingDraft`の`productPatch`に追加)。
+  - 送料(USD)・為替レート(円/USD)は試算専用の入力欄で、DBには保存しない(価格を決める前の目安を見るためだけのもの)。
+  - eBay手数料は、自社の実績(`orders`の売上合計に対する`finance_transactions`の手数料合計の比率、`src/repositories/salesHistory.ts`の`getAverageFeeRate`)があればそれを使い、無ければ一般的な目安(13%)にフォールバックする。どちらを使っているかを画面に明示する。APIルート: `GET /api/sales/fee-rate`。
+  - §25と同じ方針で、この試算は価格欄を自動で書き換えない(あくまで「原価に対してこの価格でいくら残るか」を見るための参考情報)。
+  - **既知の制限**: eBay Sandboxにまだ実績データが無いため、手数料率は現状「一般的な目安13%」にフォールバックした状態でしか確認できていない。本番で実績が溜まった後の再確認が必要。
+
+次はPhase 5の残り(§21 配送提案・§35 売れない商品の改善提案)。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -144,7 +167,7 @@ Phase 3(Claude: 商品画像解析→AIタイトル生成→AI説明文下書き
 - 商品一覧・編集画面(既存下書きを開き直す導線) — 未実装。`loadListingDraft`(サーバーアクション)は用意済みだがUIから未接続
 - 写真の並び替え・メイン画像の変更・画像種別(main/label/back等)の指定 — 未実装(常に最初にアップロードした写真がis_primary=trueになるのみ。Publish時は`sort_order`順(is_primary優先)で画像を送る)
 - eBay Media API(EPS) — 未実装のまま(step11の設計判断により、Sell Inventory APIには署名付きURLを直接渡しているため現時点では不要)
-- Claude APIによるAspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成・説明文下書き生成・出品前AIチェックは実装済み)
+- Claude APIによるAspect補完・価格/配送提案 — `src/services/ai/*.ts` に同様のスタブ(翻訳・商品解析・タイトル生成・説明文下書き生成・出品前AIチェック・AI価格提案は実装済み)
 - §22(商品サイズ・重量: 重量/縦/横/高さ)の入力欄自体が未実装
 - ホーム画面・STEP1〜3ウィザード・商品一覧・管理画面 — 未実装(`/dashboard` はプレースホルダー)
 - 現行の `GENRE_FIELDS` / `CATEGORY_PRESETS` は **意図的にまだ削除していない**(§40のREMOVE対象だが、eBay Aspect APIに置き換わるまでの暫定措置)
@@ -178,8 +201,8 @@ Phase 3(Claude: 商品画像解析→AIタイトル生成→AI説明文下書き
 「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づき、以降は以下の順で進める。
 
 - [x] Phase 3(Claude): 商品画像解析(§6) → AIタイトル生成(§12) → AI説明文の下書き生成(§13) → **出品前AIチェック(§24・2026-09-26実装、Phase 3完了)**
-- [~] Phase 4: **ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期)** → 次: 自社販売実績照合(§11)
-- [ ] Phase 5: AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21)・売れない商品の改善提案(§35)
+- [x] Phase 4: **ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期)** → **自社販売実績照合(§11・2026-09-29実装、Phase 4完了)**
+- [~] Phase 5: **AI価格提案(§15)・利益シミュレーション(§16-17)(2026-09-29実装)** → 次: 配送提案(§21)・売れない商品の改善提案(§35)
 - [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)

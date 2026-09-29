@@ -25,6 +25,7 @@ import { PrelistingAiCheckSection, type PrelistingCheckInput } from './Prelistin
 import { ColorTemplateSection } from './ColorTemplateSection';
 import { SimilarSalesSection } from './SimilarSalesSection';
 import { AiPriceSuggestionSection } from './AiPriceSuggestionSection';
+import { ProfitSimulationSection } from './ProfitSimulationSection';
 import { PreviewPanel } from './PreviewPanel';
 
 type SaveStatus =
@@ -282,6 +283,13 @@ export function ListingForm({
           quantity={state.quantity}
           currency={state.currency}
           onChange={(patchValue) => patch(patchValue)}
+        />
+
+        <ProfitSimulationSection
+          price={state.price}
+          quantity={state.quantity}
+          costPriceJpy={state.costPriceJpy}
+          onCostPriceChange={(costPriceJpy) => patch({ costPriceJpy })}
         />
 
         <AiDescriptionDraftSection

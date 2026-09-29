@@ -52,6 +52,9 @@ export async function saveListingDraft(
       conditionNotesEn: state.conditionDetail.en || null,
       includedItemsJa: state.includedItems.ja || null,
       includedItemsEn: state.includedItems.en || null,
+      // §16-17(最新実装指示書, Phase5): 利益シミュレーション用の原価(円)
+      costPrice: state.costPriceJpy.trim() ? Number(state.costPriceJpy) : null,
+      costCurrency: 'JPY',
     };
 
     let productId = identity.productId;
