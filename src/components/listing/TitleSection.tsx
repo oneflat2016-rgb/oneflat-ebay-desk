@@ -84,7 +84,7 @@ export function TitleSection({
         <span className="hint">テンプレートの見出し(H1) / eBayタイトル欄に使用</span>
       </div>
       <p className="subnote">
-        eBayの商品タイトル欄と、説明文HTMLの一番上に表示される大見出しの両方に使われます。ブランド・商品名を入力し、必要なら下のボタンでタイトル候補を作成してください。
+        eBayの商品タイトル欄と、説明文HTMLの一番上に表示される大見出しの両方に使われます。ブランド・商品名を確認したら、下のボタンでタイトル候補を作成してください。
       </p>
       <div className="field-grid">
         <div className="field">
@@ -117,6 +117,55 @@ export function TitleSection({
             placeholder="例: Hand Forged, Made in Japan"
           />
         </div>
+      </div>
+
+      {/* 2026-10-03: 「AIでタイトル候補を生成、はタイトル欄の先頭に来ないとおかしい」という
+          指摘への対応。以前はこのボタンが欄の一番下(カテゴリー欄より後ろ)にあり、押すと
+          上の方にあるタイトル欄が埋まるという逆向きの流れになっていた。ブランド・型番・
+          キーワードを確認したら、その場でタイトル候補を作る→選ぶ→下のタイトル欄に反映、
+          という自然な順番に合わせて、生成ボタンと候補一覧をタイトル欄の直前に移動した。 */}
+      <div className="actions-row" style={{ marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
+        <button type="button" className="btn primary" onClick={handleAiGenerate} disabled={isAiLoading}>
+          {isAiLoading ? 'AIがタイトルを作成中…' : 'AIでタイトル候補を生成'}
+        </button>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() =>
+            setSuggestions(buildTitleCandidates({ brand, model, keywords, condition }))
+          }
+        >
+          簡易候補を提案(AIを使わない)
+        </button>
+      </div>
+      <p className="subnote">
+        指示書§12: AIはブランド・型番・状態・Item Specifics・入力したキーワードなど、確認できている情報だけからタイトルを作成します(未確認の&quot;RARE&quot;や&quot;Vintage&quot;などは勝手に付け足しません)。AIが使えない場合は「簡易候補」ボタンでも続行できます。
+      </p>
+      {aiError && (
+        <p className="subnote" style={{ color: '#c0392b', marginTop: 4 }}>
+          {aiError}
+        </p>
+      )}
+      {suggestions.length > 0 && (
+        <div className="suggestion-list" style={{ marginTop: 12, marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="btn ghost"
+              style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
+              onClick={() => onTitleChange(s.length > 80 ? s.slice(0, 80) : s)}
+            >
+              <span>{s}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
+                {s.length}/80
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="field-grid">
         <div className="field full">
           <label htmlFor="f-title">商品タイトル(eBay出品用・80文字まで)</label>
           <input
@@ -131,7 +180,7 @@ export function TitleSection({
         </div>
         <div className="field full">
           <label htmlFor="f-category-preset">
-            eBayカテゴリー候補(0.で選んだジャンルに合わせて表示)
+            eBayカテゴリー候補(下の「4. 商品ジャンル」に合わせて表示)
           </label>
           <select
             id="f-category-preset"
@@ -162,46 +211,6 @@ export function TitleSection({
           </p>
         </div>
       </div>
-      <div className="actions-row" style={{ marginTop: 2, flexWrap: 'wrap', gap: 8 }}>
-        <button type="button" className="btn primary" onClick={handleAiGenerate} disabled={isAiLoading}>
-          {isAiLoading ? 'AIがタイトルを作成中…' : 'AIでタイトル候補を生成'}
-        </button>
-        <button
-          type="button"
-          className="btn ghost"
-          onClick={() =>
-            setSuggestions(buildTitleCandidates({ brand, model, keywords, condition }))
-          }
-        >
-          簡易候補を提案(AIを使わない)
-        </button>
-      </div>
-      <p className="subnote">
-        指示書§12: AIはブランド・型番・状態・Item Specifics・入力したキーワードなど、確認できている情報だけからタイトルを作成します(未確認の&quot;RARE&quot;や&quot;Vintage&quot;などは勝手に付け足しません)。AIが使えない場合は「簡易候補」ボタンでも続行できます。
-      </p>
-      {aiError && (
-        <p className="subnote" style={{ color: '#c0392b', marginTop: 4 }}>
-          {aiError}
-        </p>
-      )}
-      {suggestions.length > 0 && (
-        <div className="suggestion-list" style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {suggestions.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className="btn ghost"
-              style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
-              onClick={() => onTitleChange(s.length > 80 ? s.slice(0, 80) : s)}
-            >
-              <span>{s}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
-                {s.length}/80
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </section>
   );
 }
