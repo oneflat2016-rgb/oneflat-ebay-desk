@@ -67,7 +67,7 @@ export function DynamicConditionSection({
   return (
     <section className="card" id="dynamic-condition-section">
       <div className="legend-row">
-        <h2>6. eBayの状態(Item Condition・eBayカテゴリー連動)</h2>
+        <h2>5. eBayの状態(Item Condition・eBayカテゴリー連動)</h2>
         <span className="hint">1.5.でeBayカテゴリーを選ぶと選択肢が表示されます</span>
       </div>
       <p className="subnote">

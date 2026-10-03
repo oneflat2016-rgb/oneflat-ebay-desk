@@ -61,7 +61,7 @@ export function CategorySuggestSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>5. eBayカテゴリー候補(Taxonomy API)</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>4. eBayカテゴリー候補(Taxonomy API)</h2>
         <span className="hint">ブランドが分からない商品でも種別から検索できます</span>
       </div>
       <p className="subnote">

@@ -65,7 +65,7 @@ export function PrelistingAiCheckSection({ getInput }: { getInput: () => Prelist
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>21. 出品前AIチェック</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>20. 出品前AIチェック</h2>
         <span className="hint">型番・写真の矛盾や未入力項目をチェック(任意・Publishはブロックしません)</span>
       </div>
       <p className="subnote">

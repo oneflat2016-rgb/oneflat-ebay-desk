@@ -83,7 +83,7 @@ export function DynamicAspectsSection({
   return (
     <section className="card" id="dynamic-aspects-section">
       <div className="legend-row">
-        <h2>7. 商品仕様(Item Specifics・eBayカテゴリー連動)</h2>
+        <h2>6. 商品仕様(Item Specifics・eBayカテゴリー連動)</h2>
         <span className="hint">
           {categoryName ? `カテゴリー: ${categoryName}` : '1.5.でeBayカテゴリーを選択してください'}
         </span>

@@ -62,7 +62,7 @@ export function AiDescriptionDraftSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>14. AIによる説明文の下書き作成</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>13. AIによる説明文の下書き作成</h2>
         <span className="hint">ブランド・型番・Item Specifics・Conditionから日本語下書きを作成(任意)</span>
       </div>
       <p className="subnote">

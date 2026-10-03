@@ -63,7 +63,7 @@ export function AiPriceSuggestionSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>10. AI価格提案(§15)</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>9. AI価格提案(§15)</h2>
         <span className="hint">自社の過去の販売実績を根拠に、AIが価格の目安を提案(任意・自動反映しません)</span>
       </div>
       <p className="subnote">

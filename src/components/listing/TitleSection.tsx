@@ -1,18 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import type { ConditionValue, GenreKey } from '@/types/listing';
-import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
+import type { ConditionValue } from '@/types/listing';
 import { buildTitleCandidates } from '@/lib/listing/titleSuggestions';
 
 interface Props {
-  genre: GenreKey;
   brand: string;
   model: string;
   keywords: string;
   title: string;
   category: string;
-  categoryPreset: string;
   condition: ConditionValue;
   ebayConditionDescription: string | null;
   aspectValues: Record<string, string[]>;
@@ -21,11 +18,9 @@ interface Props {
   onKeywordsChange: (v: string) => void;
   onTitleChange: (v: string) => void;
   onCategoryChange: (v: string) => void;
-  onCategoryPresetChange: (v: string) => void;
 }
 
 export function TitleSection({
-  genre,
   brand,
   model,
   keywords,
@@ -39,13 +34,11 @@ export function TitleSection({
   onKeywordsChange,
   onTitleChange,
   onCategoryChange,
-  onCategoryPresetChange,
 }: Props) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const len = title.length;
-  const presets = genre ? (CATEGORY_PRESETS[genre] ?? []) : [];
 
   async function handleAiGenerate() {
     setIsAiLoading(true);
@@ -177,25 +170,6 @@ export function TitleSection({
           <p className="subnote" style={{ marginTop: 4 }}>
             {len} / 80文字
           </p>
-        </div>
-        <div className="field full">
-          <label htmlFor="f-category-preset">
-            eBayカテゴリー候補(下の「4. 商品ジャンル」に合わせて表示)
-          </label>
-          <select
-            id="f-category-preset"
-            defaultValue=""
-            onChange={(e) => {
-              if (e.target.value) onCategoryPresetChange(e.target.value);
-            }}
-          >
-            <option value="">-- 候補から選ぶ(選ぶと下の欄に反映されます) --</option>
-            {presets.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
         </div>
         <div className="field full">
           <label htmlFor="f-category">eBayカテゴリー(検索用キーワード・自由に編集できます)</label>

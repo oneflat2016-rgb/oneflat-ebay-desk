@@ -22,7 +22,7 @@ export function PricingSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2>11. 価格・数量(eBay Offerに必須)</h2>
+        <h2>10. 価格・数量(eBay Offerに必須)</h2>
         <span className="hint">§66-67</span>
       </div>
       <p className="subnote">

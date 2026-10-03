@@ -62,7 +62,7 @@ export function SimilarSalesSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>9. 自社の過去の販売実績(§11)</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>8. 自社の過去の販売実績(§11)</h2>
         <span className="hint">ブランド・型番が近い、自社で実際に売れた商品を検索(値付けの参考・任意)</span>
       </div>
       <p className="subnote">

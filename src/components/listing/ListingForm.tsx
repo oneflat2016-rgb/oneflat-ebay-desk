@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
-import type { GenreKey, ListingFormState } from '@/types/listing';
+import type { ListingFormState } from '@/types/listing';
 import type { EbayAspectDefinition } from '@/types/ebay';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
@@ -14,7 +14,6 @@ import { PricingSection } from './PricingSection';
 import { AiAnalysisSection } from './AiAnalysisSection';
 import { AiDescriptionDraftSection, type DescriptionDrafts } from './AiDescriptionDraftSection';
 import { CategorySuggestSection } from './CategorySuggestSection';
-import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
 import { DynamicConditionSection } from './DynamicConditionSection';
 import { BusinessPoliciesSection } from './BusinessPoliciesSection';
@@ -138,17 +137,6 @@ export function ListingForm({
     });
   }, [state.title, state.brand, state.keywords, state.genre]);
 
-  function handleGenreChange(genre: GenreKey) {
-    setState((prev) => {
-      const presets = genre ? CATEGORY_PRESETS[genre] : undefined;
-      return {
-        ...prev,
-        genre,
-        category: presets?.[0] ?? prev.category,
-      };
-    });
-  }
-
   function handleAspectValueChange(aspectName: string, values: string[]) {
     setState((prev) => ({ ...prev, aspectValues: { ...prev.aspectValues, [aspectName]: values } }));
   }
@@ -250,18 +238,19 @@ export function ListingForm({
           }
         />
 
-        {/* 2026-10-03: 「タイトルを入れたら、タイトルを元にジャンル選択できる
-            ようにしたい」という要望に合わせて、ジャンル選択をタイトルの後ろへ
-            移動した(以前は入力フロー最初の0.だった)。ジャンルはタイトル・
-            ブランド・キーワードから自動提案されるため、通常は手動選択不要。 */}
+        {/* 2026-10-03: 「4と5の違いは何？統合できないの？」という指摘への対応。
+            旧ジャンル選択(手動6択)は、実際にeBayへ送られる本物のカテゴリー
+            (このすぐ下のeBayカテゴリー候補・Taxonomy API)とは別物で、タイトル欄の
+            旧カテゴリー候補ドロップダウンを切り替えるためだけの暫定機能だった。
+            そのドロップダウンごと廃止したため、ジャンル選択欄も画面から削除した。
+            ジャンルの自動推定(state.genre)自体は裏側に残し、AI説明文下書きの
+            商品種別フォールバックなど小さな用途にのみ引き続き使う。 */}
         <TitleSection
-          genre={state.genre}
           brand={state.brand}
           model={state.model}
           keywords={state.keywords}
           title={state.title}
           category={state.category}
-          categoryPreset={state.categoryPreset}
           condition={state.condition}
           ebayConditionDescription={state.ebayConditionDescription}
           aspectValues={state.aspectValues}
@@ -270,12 +259,7 @@ export function ListingForm({
           onKeywordsChange={(keywords) => patch({ keywords })}
           onTitleChange={(title) => patch({ title })}
           onCategoryChange={(category) => patch({ category })}
-          onCategoryPresetChange={(categoryPreset) =>
-            patch({ categoryPreset, category: categoryPreset })
-          }
         />
-
-        <GenreSection genre={state.genre} onChange={handleGenreChange} />
 
         <CategorySuggestSection
           categoryId={state.categoryId}
@@ -385,7 +369,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={15}
+          sectionNumber={14}
           heading="About This Item(商品について)"
           hint="1行 = 1項目・空欄なら省略"
           description="状態や見た目以外で伝えたい、商品の特徴やアピールポイントを書く欄です。"
@@ -395,7 +379,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={16}
+          sectionNumber={15}
           heading="Appearance(見た目・外観)"
           hint="1行 = 1項目・空欄なら省略"
           description="傷・汚れ・色あせなど、見た目に関する情報を書く欄です。"
@@ -405,7 +389,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={17}
+          sectionNumber={16}
           heading="Condition(状態の詳細説明)"
           hint="1行 = 1項目・空欄なら省略"
           description="動作確認の結果など、状態について詳しく説明する文章です。"
@@ -415,7 +399,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={18}
+          sectionNumber={17}
           heading="Included Items(付属品)"
           hint="1行 = 1項目・空欄なら省略"
           description="本体以外に一緒にお届けするもの(箱・説明書・付属品など)を書く欄です。"
@@ -427,7 +411,7 @@ export function ListingForm({
         <section className="card">
           <div className="legend-row">
             <h2 style={{ fontSize: '1.05rem' }}>
-              19. Shipping / Importer&apos;s Obligation(発送・関税について)
+              18. Shipping / Importer&apos;s Obligation(発送・関税について)
             </h2>
             <span className="hint">固定(TODO: §50で条件連動化)</span>
           </div>
