@@ -52,7 +52,7 @@ export async function publishListingToEbay(
   }
 
   if (!identity.productId || !identity.draftId) {
-    return { ok: false, error: '先に「保存」を押して下書きを保存してください。' };
+    return { ok: false, error: '先に「出品を開始する」を押して下書きを保存してください。' };
   }
 
   // §1: Validation ------------------------------------------------------

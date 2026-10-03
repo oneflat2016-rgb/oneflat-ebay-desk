@@ -10,7 +10,7 @@ import type { ProductImageWithUrl } from '@/repositories/productImages';
 
 /**
  * §110 step4: スマホ/PCから商品写真を撮影・選択してアップロードするセクション。
- * まだ「保存」を一度も押していない(productIdが無い)間はアップロードできない
+ * まだ「出品を開始する」を一度も押していない(productIdが無い)間はアップロードできない
  * (product_imagesはproductsに外部キーで紐づくため)。
  * `accept="image/*"` のみでcapture属性は付けていない
  * (スマホでは「写真を撮る/ライブラリから選ぶ」の選択肢が出て、PCでは通常のファイル選択になる)。
@@ -80,7 +80,7 @@ export function ImagesSection({ productId }: { productId: string | null }) {
 
       {!productId ? (
         <p className="subnote">
-          写真を追加するには、先に下の「保存」ボタンを1回押して商品を登録してください(登録後にこの欄が使えるようになります)。
+          写真を追加するには、先に「出品を開始する」ボタンを1回押して商品を登録してください(登録後にこの欄が使えるようになります)。
         </p>
       ) : (
         <>

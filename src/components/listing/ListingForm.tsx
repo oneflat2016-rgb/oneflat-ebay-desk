@@ -171,6 +171,15 @@ export function ListingForm({
   return (
     <div className="layout">
       <div className="form-col">
+        {/* §110 step3 追加: ページ上部にも同じ「出品を開始する」ボタンを置く。
+            下までスクロールしなくても、最初に押すべき操作がすぐ見つかるようにする。 */}
+        <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? '出品を開始しています…' : '出品を開始する'}
+          </button>
+          <SaveStatusLabel status={saveStatus} />
+        </div>
+
         <ImagesSection productId={identity.productId} />
 
         <AiAnalysisSection
@@ -406,7 +415,7 @@ export function ListingForm({
 
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? '保存中…' : '保存'}
+            {isSaving ? '出品を開始しています…' : '出品を開始する'}
           </button>
           <button type="button" className="btn" onClick={handleClear}>
             クリアして次の商品へ
@@ -438,10 +447,10 @@ export function ListingForm({
  */
 function SaveStatusLabel({ status }: { status: SaveStatus }) {
   if (status.kind === 'idle') {
-    return <span className="hint">まだ保存されていません</span>;
+    return <span className="hint">まだ出品を開始していません</span>;
   }
   if (status.kind === 'saving') {
-    return <span className="hint">保存しています…</span>;
+    return <span className="hint">出品情報を保存しています…</span>;
   }
   if (status.kind === 'saved') {
     const time = new Date(status.at).toLocaleTimeString('ja-JP', {

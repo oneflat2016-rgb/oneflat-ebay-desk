@@ -33,7 +33,7 @@ export function AiAnalysisSection({
 
   async function handleAnalyze() {
     if (!productId) {
-      setStatus({ text: '先に「保存」を1回押して商品を登録してください。', kind: 'warn' });
+      setStatus({ text: '先に「出品を開始する」を1回押して商品を登録してください。', kind: 'warn' });
       return;
     }
     setLoading(true);
@@ -75,7 +75,7 @@ export function AiAnalysisSection({
 
       {!productId ? (
         <p className="subnote">
-          解析するには、先に写真をアップロードしてください(その前に「保存」を1回押して商品を登録する必要があります)。
+          解析するには、先に写真をアップロードしてください(その前に「出品を開始する」を1回押して商品を登録する必要があります)。
         </p>
       ) : (
         <>
