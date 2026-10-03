@@ -125,7 +125,7 @@ export function BusinessPoliciesSection({
   return (
     <section className="card" id="business-policies-section">
       <div className="legend-row">
-        <h2>9. eBay Business Policies・保管場所(§110 step10)</h2>
+        <h2>8. eBay Business Policies・保管場所(§110 step10)</h2>
         <span className="hint">出品者アカウント単位の設定</span>
       </div>
       <p className="subnote">

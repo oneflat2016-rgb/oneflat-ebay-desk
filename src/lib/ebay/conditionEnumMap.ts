@@ -38,3 +38,42 @@ export function mapConditionIdToEnum(conditionId: string): string {
   }
   return mapped;
 }
+
+/**
+ * 2026-10-03: 本番実商品テストで発見した「Conditionの入力欄が2つある」問題への対応。
+ *
+ * これまでは、実際にeBayへ送るCondition(DynamicConditionSection・eBay Metadata API由来)
+ * と、タイトル候補生成だけに使う固定6択のCondition(旧ConditionSection)を、
+ * それぞれ別々に選ぶ必要があった。
+ *
+ * ここでは、eBayのConditionEnum(mapConditionIdToEnumの戻り値)から、タイトル候補生成用の
+ * 6択(ConditionValue)へ変換する。これにより、ユーザーがeBayのCondition一覧から選んだ
+ * 内容だけで両方をまかなえるようにし、旧ConditionSectionの手動選択をなくす。
+ */
+const CONDITION_ENUM_TO_TITLE_VALUE: Record<string, import('@/types/listing').ConditionValue> = {
+  NEW: 'New',
+  NEW_OTHER: 'New – Open Box',
+  NEW_WITH_DEFECTS: 'New – Open Box',
+  CERTIFIED_REFURBISHED: 'Used – Excellent',
+  EXCELLENT_REFURBISHED: 'Used – Excellent',
+  VERY_GOOD_REFURBISHED: 'Used – Good',
+  GOOD_REFURBISHED: 'Used – Good',
+  SELLER_REFURBISHED: 'Used – Good',
+  LIKE_NEW: 'Used – Excellent',
+  USED_EXCELLENT: 'Used – Excellent',
+  USED_VERY_GOOD: 'Used – Good',
+  USED_GOOD: 'Used – Good',
+  USED_ACCEPTABLE: 'Used – Fair',
+  FOR_PARTS_OR_NOT_WORKING: 'For Parts / Not Working',
+};
+
+/**
+ * eBayのconditionId(Metadata API)から、タイトル候補生成用のConditionValueを求める。
+ * 未登録のIDや変換に失敗した場合はnullを返す(呼び出し側はnullなら何もしない=
+ * 直前の値を維持する)。
+ */
+export function mapConditionIdToTitleValue(conditionId: string): import('@/types/listing').ConditionValue | null {
+  const enumValue = CONDITION_ID_TO_ENUM[conditionId];
+  if (!enumValue) return null;
+  return CONDITION_ENUM_TO_TITLE_VALUE[enumValue] ?? null;
+}

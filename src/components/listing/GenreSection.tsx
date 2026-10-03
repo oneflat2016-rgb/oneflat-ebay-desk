@@ -16,6 +16,11 @@ const GENRE_OPTIONS: { value: GenreKey; label: string }[] = [
 /**
  * TODO(§37-40): このジャンル選択は暫定UI。
  * 将来はeBay Taxonomy APIのカテゴリー候補選択(CategorySection)に置き換わる。
+ *
+ * 2026-10-03: 以前はこの欄がフォーム最初の「0.」で、タイトルも何も入れていない
+ * うちに手動で選ぶ必要があった。いまは1.のタイトル入力の後ろに移動し、
+ * タイトル・ブランド・キーワードの内容から自動でジャンルが提案される
+ * (ListingForm.tsxのuseEffect参照)。多くの場合、ここで手動選択する必要はない。
  */
 export function GenreSection({
   genre,
@@ -29,11 +34,11 @@ export function GenreSection({
   return (
     <section className="card" id="genre-section">
       <div className="legend-row">
-        <h2>0. 商品ジャンルを選択</h2>
-        <span className="hint">最初に選ぶと下の項目が自動で切り替わります</span>
+        <h2>4. 商品ジャンル(タイトルから自動提案)</h2>
+        <span className="hint">タイトルの内容から自動で選ばれます・変更できます</span>
       </div>
       <p className="subnote">
-        出品する商品のジャンルを選んでください。ここで選んだジャンルに合わせて、1.の「eBayカテゴリー候補」と、7.の「商品仕様」入力欄が自動で切り替わります。当てはまるジャンルがなければ「選択しない」のままで大丈夫です。
+        上の「3. タイトル」に入力した内容から、商品ジャンルが自動で提案されます。提案が違う場合や、当てはまるジャンルがない場合はここで選び直してください(「選択しない」のままでも出品できます)。ここで選んだジャンルは、下の「5. eBayカテゴリー候補」の参考候補として使われます。
       </p>
       <div className="field-grid">
         <div className="field full">

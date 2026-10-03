@@ -168,7 +168,7 @@ export function ShippingSuggestionSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>配送提案(§21-22)</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>13. 配送提案(§21-22)</h2>
         <span className="hint">重量・サイズ・配送先から配送方法の候補を計算し、Claudeが比較コメントを付けます(任意・自動反映しません)</span>
       </div>
       <p className="subnote">

@@ -21,7 +21,7 @@ export function ChecklistSection({
   return (
     <section className="card" style={{ position: 'relative' }}>
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>出品前チェックリスト</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>20. 出品前チェックリスト</h2>
         <span className="hint">
           {checkedCount} / {total}
         </span>

@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useState, useTransition } from 'react';
-import type { ConditionValue, GenreKey, ListingFormState } from '@/types/listing';
+import { useCallback, useEffect, useState, useTransition } from 'react';
+import type { GenreKey, ListingFormState } from '@/types/listing';
 import type { EbayAspectDefinition } from '@/types/ebay';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
 import { CATEGORY_PRESETS } from '@/lib/listing/genreFields';
+import { guessGenreFromText } from '@/lib/listing/genreGuess';
+import { mapConditionIdToTitleValue } from '@/lib/ebay/conditionEnumMap';
 import { saveListingDraft, type SaveListingIdentity } from '@/app/(app)/listings/new/actions';
 import { publishListingToEbay } from '@/app/(app)/listings/new/publishActions';
 import { ImagesSection } from './ImagesSection';
@@ -14,11 +16,9 @@ import { AiDescriptionDraftSection, type DescriptionDrafts } from './AiDescripti
 import { CategorySuggestSection } from './CategorySuggestSection';
 import { GenreSection } from './GenreSection';
 import { TitleSection } from './TitleSection';
-import { ConditionSection } from './ConditionSection';
 import { DynamicConditionSection } from './DynamicConditionSection';
 import { BusinessPoliciesSection } from './BusinessPoliciesSection';
 import { BilingualSection } from './BilingualSection';
-import { SpecificsSection } from './SpecificsSection';
 import { DynamicAspectsSection } from './DynamicAspectsSection';
 import { ChecklistSection } from './ChecklistSection';
 import { PrelistingAiCheckSection, type PrelistingCheckInput } from './PrelistingAiCheckSection';
@@ -78,6 +78,66 @@ export function ListingForm({
     setState((prev) => ({ ...prev, ...partial }));
   }, []);
 
+  /**
+   * 2026-10-03: 本番実商品テストで発見したバグへの対応。
+   * 「2. タイトル作成」欄の「ブランド」(state.brand)と、eBayの商品仕様(Item
+   * Specifics)側の「Brand」(state.aspectValues.Brand)は別々の入力欄のため、
+   * タイトル用のブランドだけ入力してItem Specifics側を空のままPublishすると、
+   * eBayから「The item specific Brand is missing.」(400エラー)で拒否されていた。
+   * eBay側のBrand項目がまだ未入力の間は、タイトル用のブランド欄の値を自動で
+   * 反映する(ユーザーがItem Specifics側のBrandを一度でも編集したら、以降は
+   * 上書きしない)。
+   */
+  useEffect(() => {
+    const hasBrandAspect = ebayAspects.some((a) => a.aspectName === 'Brand');
+    if (!hasBrandAspect || !state.brand) return;
+    setState((prev) => {
+      const existing = prev.aspectValues['Brand'];
+      if (existing && existing.length > 0) return prev;
+      return { ...prev, aspectValues: { ...prev.aspectValues, Brand: [prev.brand] } };
+    });
+  }, [ebayAspects, state.brand]);
+
+  /**
+   * 2026-10-03: 本番実商品テストで発見した「Conditionの入力欄が2つある」問題への対応。
+   * これまでは、実際にeBayへ送るCondition(DynamicConditionSection・eBay Metadata API由来)
+   * と、タイトル候補生成だけに使う固定6択のCondition(旧ConditionSection)を、
+   * それぞれ別々に選ぶ必要があった(§43/§116で「廃止予定」とされていたもの)。
+   * ここでは、eBayのConditionを選んだ時点でタイトル候補生成用の値も自動的に
+   * 合わせる。これにより旧ConditionSectionの手動選択欄は不要になったため、
+   * 画面上から削除した(下記JSX参照)。
+   */
+  useEffect(() => {
+    if (!state.ebayConditionId) return;
+    const titleValue = mapConditionIdToTitleValue(state.ebayConditionId);
+    if (!titleValue) return;
+    setState((prev) => (prev.condition === titleValue ? prev : { ...prev, condition: titleValue }));
+  }, [state.ebayConditionId]);
+
+  /**
+   * 2026-10-03: 本番実商品テストで出た「順番が不自然。タイトルを入れたら、
+   * タイトルを元にジャンル選択できるようにしたい。目的は可能な限り手動入力を
+   * 少なくすることだ」という要望への対応。
+   * 以前は「0. 商品ジャンルを選択」がフォームの一番最初にあり、タイトルも
+   * ブランドも何も入れていない段階で必ず手動選択する構成になっていた。
+   * ここではタイトル・ブランド・キーワードの入力内容から簡易キーワード一致で
+   * ジャンルを自動提案し、ジャンルがまだ未選択('')の間だけ自動反映する
+   * (Brand自動反映・Condition自動同期と同じ考え方: ユーザーが一度でも
+   * 手動でジャンルを選んだら、以降は自動提案で上書きしない)。
+   */
+  useEffect(() => {
+    if (state.genre) return;
+    const guessed = guessGenreFromText(
+      [state.title, state.brand, state.keywords].filter(Boolean).join(' '),
+    );
+    if (!guessed) return;
+    setState((prev) => {
+      if (prev.genre) return prev;
+      const presets = CATEGORY_PRESETS[guessed];
+      return { ...prev, genre: guessed, category: presets?.[0] ?? prev.category };
+    });
+  }, [state.title, state.brand, state.keywords, state.genre]);
+
   function handleGenreChange(genre: GenreKey) {
     setState((prev) => {
       const presets = genre ? CATEGORY_PRESETS[genre] : undefined;
@@ -87,10 +147,6 @@ export function ListingForm({
         category: presets?.[0] ?? prev.category,
       };
     });
-  }
-
-  function handleSpecificChange(key: string, value: string) {
-    setState((prev) => ({ ...prev, specifics: { ...prev.specifics, [key]: value } }));
   }
 
   function handleAspectValueChange(aspectName: string, values: string[]) {
@@ -194,13 +250,10 @@ export function ListingForm({
           }
         />
 
-        <ColorTemplateSection
-          colors={state.templateColors}
-          onChange={(templateColors) => patch({ templateColors })}
-        />
-
-        <GenreSection genre={state.genre} onChange={handleGenreChange} />
-
+        {/* 2026-10-03: 「タイトルを入れたら、タイトルを元にジャンル選択できる
+            ようにしたい」という要望に合わせて、ジャンル選択をタイトルの後ろへ
+            移動した(以前は入力フロー最初の0.だった)。ジャンルはタイトル・
+            ブランド・キーワードから自動提案されるため、通常は手動選択不要。 */}
         <TitleSection
           genre={state.genre}
           brand={state.brand}
@@ -221,6 +274,8 @@ export function ListingForm({
             patch({ categoryPreset, category: categoryPreset })
           }
         />
+
+        <GenreSection genre={state.genre} onChange={handleGenreChange} />
 
         <CategorySuggestSection
           categoryId={state.categoryId}
@@ -243,15 +298,9 @@ export function ListingForm({
           }}
         />
 
-        <DynamicAspectsSection
-          categoryTreeId={state.categoryTreeId}
-          categoryId={state.categoryId}
-          categoryName={state.categoryName}
-          values={state.aspectValues}
-          onChange={handleAspectValueChange}
-          onAspectsLoaded={setEbayAspects}
-        />
-
+        {/* 2026-10-03: 「商品の状態」を先に決めてから、状態に応じた商品仕様を
+            入力する流れの方が自然なため、Conditionを先に表示する(見出し番号
+            2.→7.の順にも合わせている)。 */}
         <DynamicConditionSection
           categoryId={state.categoryId}
           conditionId={state.ebayConditionId}
@@ -260,9 +309,13 @@ export function ListingForm({
           }
         />
 
-        <ConditionSection
-          condition={state.condition}
-          onChange={(condition: ConditionValue) => patch({ condition })}
+        <DynamicAspectsSection
+          categoryTreeId={state.categoryTreeId}
+          categoryId={state.categoryId}
+          categoryName={state.categoryName}
+          values={state.aspectValues}
+          onChange={handleAspectValueChange}
+          onAspectsLoaded={setEbayAspects}
         />
 
         <BusinessPoliciesSection
@@ -332,7 +385,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={3}
+          sectionNumber={15}
           heading="About This Item(商品について)"
           hint="1行 = 1項目・空欄なら省略"
           description="状態や見た目以外で伝えたい、商品の特徴やアピールポイントを書く欄です。"
@@ -342,7 +395,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={4}
+          sectionNumber={16}
           heading="Appearance(見た目・外観)"
           hint="1行 = 1項目・空欄なら省略"
           description="傷・汚れ・色あせなど、見た目に関する情報を書く欄です。"
@@ -352,7 +405,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={5}
+          sectionNumber={17}
           heading="Condition(状態の詳細説明)"
           hint="1行 = 1項目・空欄なら省略"
           description="動作確認の結果など、状態について詳しく説明する文章です。"
@@ -362,7 +415,7 @@ export function ListingForm({
         />
 
         <BilingualSection
-          sectionNumber={6}
+          sectionNumber={18}
           heading="Included Items(付属品)"
           hint="1行 = 1項目・空欄なら省略"
           description="本体以外に一緒にお届けするもの(箱・説明書・付属品など)を書く欄です。"
@@ -371,16 +424,10 @@ export function ListingForm({
           idPrefix="included"
         />
 
-        <SpecificsSection
-          genre={state.genre}
-          specifics={state.specifics}
-          onChange={handleSpecificChange}
-        />
-
         <section className="card">
           <div className="legend-row">
             <h2 style={{ fontSize: '1.05rem' }}>
-              Shipping / Importer&apos;s Obligation(発送・関税について)
+              19. Shipping / Importer&apos;s Obligation(発送・関税について)
             </h2>
             <span className="hint">固定(TODO: §50で条件連動化)</span>
           </div>
@@ -411,6 +458,14 @@ export function ListingForm({
             merchantLocationKey: state.merchantLocationKey,
             price: state.price,
           })}
+        />
+
+        {/* 2026-10-03: 「テンプレートの配色、こんなの一番最後でしょ」という指摘への対応。
+            商品の内容とは関係ない見た目設定(TODO §51: 将来は管理画面へ移動予定)のため、
+            情報入力の流れを邪魔しないよう一番最後(チェック類の後ろ)に移動した。 */}
+        <ColorTemplateSection
+          colors={state.templateColors}
+          onChange={(templateColors) => patch({ templateColors })}
         />
 
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>

@@ -94,7 +94,7 @@ export function ProfitSimulationSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>利益シミュレーション(§16-17)</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>12. 利益シミュレーション(§16-17)</h2>
         <span className="hint">原価・送料・為替レートから、手数料込みの想定利益をその場で試算(目安・任意)</span>
       </div>
       <p className="subnote">

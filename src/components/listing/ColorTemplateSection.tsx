@@ -25,7 +25,7 @@ export function ColorTemplateSection({
   return (
     <section className="card" style={{ marginBottom: 18 }}>
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>テンプレートの配色</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>22. テンプレートの配色</h2>
         <span className="hint">TODO: 将来は管理画面へ移動(§51)</span>
       </div>
       <p className="subnote" style={{ margin: '0 0 12px' }}>
