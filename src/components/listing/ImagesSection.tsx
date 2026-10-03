@@ -74,7 +74,7 @@ export function ImagesSection({ productId }: { productId: string | null }) {
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>0. 商品写真</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>1. 商品写真</h2>
         <span className="hint">複数角度から撮影してください</span>
       </div>
 

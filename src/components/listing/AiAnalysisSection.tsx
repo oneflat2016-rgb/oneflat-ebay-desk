@@ -69,7 +69,7 @@ export function AiAnalysisSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>0.5. AIによる商品解析</h2>
+        <h2 style={{ fontSize: '1.05rem' }}>2. AIによる商品解析</h2>
         <span className="hint">写真からブランド・型番などを推定(任意)</span>
       </div>
 
