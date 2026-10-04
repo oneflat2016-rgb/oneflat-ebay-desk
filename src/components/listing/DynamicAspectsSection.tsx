@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { EbayAspectDefinition } from '@/types/ebay';
+import { translateAspectName } from '@/lib/listing/aspectNameJa';
 
 /**
  * §39-42(§110 step7): eBay Taxonomy APIから取得したItem Specifics(Aspect)の
@@ -131,9 +132,18 @@ function AspectField({
   onChange: (values: string[]) => void;
 }) {
   const inputId = `aspect-${aspect.aspectName.replace(/\s+/g, '-')}`;
+  // 2026-10-04: 「商品仕様の各項目に日本語訳を入れて」という要望への対応。
+  // 送信するのは必ずeBayから返ってきた英語の項目名(aspect.aspectName)のまま
+  // (§117-2)。日本語訳は分かる範囲のものだけ表示用に補足する(無ければ英語のみ)。
+  const aspectNameJa = translateAspectName(aspect.aspectName);
   const label = (
     <label htmlFor={inputId}>
       {aspect.aspectName}
+      {aspectNameJa && (
+        <span className="hint" style={{ marginLeft: 6, fontWeight: 'normal' }}>
+          ({aspectNameJa})
+        </span>
+      )}
       {aspect.required && (
         <span style={{ color: 'var(--danger, #c0392b)', marginLeft: 4 }} aria-label="必須">
           *必須
