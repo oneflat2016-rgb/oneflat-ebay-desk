@@ -33,6 +33,10 @@ export function DynamicAspectsSection({
     text: '',
     kind: '',
   });
+  // 2026-10-04: 「これ以外にもある(未訳の項目名がまだある)」という指摘への対応。
+  // 固定辞書(aspectNameJa.ts)に無い項目名は、AIにまとめて日本語訳してもらい、
+  // ここに保持する(失敗しても英語表示のみになるだけでフォームは止めない)。
+  const [aiTranslations, setAiTranslations] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!categoryTreeId || !categoryId) {
@@ -60,6 +64,25 @@ export function DynamicAspectsSection({
         onAspectsLoaded(data.aspects);
         if (data.aspects.length === 0) {
           setStatus({ text: 'このカテゴリーにはeBay側の入力項目が登録されていません。', kind: 'warn' });
+        }
+
+        const missing = data.aspects
+          .map((a) => a.aspectName)
+          .filter((name) => !translateAspectName(name));
+        if (missing.length > 0) {
+          fetch('/api/ai/translate-aspect-names', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ names: missing }),
+          })
+            .then((res) => (res.ok ? (res.json() as Promise<{ translations: Record<string, string> }>) : null))
+            .then((body) => {
+              if (cancelled || !body) return;
+              setAiTranslations((prev) => ({ ...prev, ...body.translations }));
+            })
+            .catch(() => {
+              // 日本語訳が取れなくても英語表示のみで継続する(§100)。
+            });
         }
       })
       .catch((err) => {
@@ -112,6 +135,7 @@ export function DynamicAspectsSection({
                   aspect={aspect}
                   value={values[aspect.aspectName] ?? []}
                   onChange={(v) => onChange(aspect.aspectName, v)}
+                  aiNameJa={aiTranslations[aspect.aspectName]}
                 />
               ))}
             </div>
@@ -126,16 +150,19 @@ function AspectField({
   aspect,
   value,
   onChange,
+  aiNameJa,
 }: {
   aspect: EbayAspectDefinition;
   value: string[];
   onChange: (values: string[]) => void;
+  aiNameJa?: string;
 }) {
   const inputId = `aspect-${aspect.aspectName.replace(/\s+/g, '-')}`;
   // 2026-10-04: 「商品仕様の各項目に日本語訳を入れて」という要望への対応。
   // 送信するのは必ずeBayから返ってきた英語の項目名(aspect.aspectName)のまま
-  // (§117-2)。日本語訳は分かる範囲のものだけ表示用に補足する(無ければ英語のみ)。
-  const aspectNameJa = translateAspectName(aspect.aspectName);
+  // (§117-2)。固定辞書にあればそれを、無ければAIが生成した訳(aiNameJa)を
+  // 表示用に補足する(どちらも無ければ英語のみ)。
+  const aspectNameJa = translateAspectName(aspect.aspectName) ?? aiNameJa ?? null;
   const label = (
     <label htmlFor={inputId}>
       {aspect.aspectName}
