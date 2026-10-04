@@ -259,29 +259,15 @@ export function ListingForm({
           }
         />
 
-        {/* 2026-10-03: 「4と5の違いは何？統合できないの？」という指摘への対応。
-            旧ジャンル選択(手動6択)は、実際にeBayへ送られる本物のカテゴリー
-            (このすぐ下のeBayカテゴリー候補・Taxonomy API)とは別物で、タイトル欄の
-            旧カテゴリー候補ドロップダウンを切り替えるためだけの暫定機能だった。
-            そのドロップダウンごと廃止したため、ジャンル選択欄も画面から削除した。
-            ジャンルの自動推定(state.genre)自体は裏側に残し、AI説明文下書きの
-            商品種別フォールバックなど小さな用途にのみ引き続き使う。 */}
-        <TitleSection
-          brand={state.brand}
-          model={state.model}
-          keywords={state.keywords}
-          title={state.title}
-          category={state.category}
-          condition={state.condition}
-          ebayConditionDescription={state.ebayConditionDescription}
-          aspectValues={state.aspectValues}
-          onBrandChange={(brand) => patch({ brand })}
-          onModelChange={(model) => patch({ model })}
-          onKeywordsChange={(keywords) => patch({ keywords })}
-          onTitleChange={(title) => patch({ title })}
-          onCategoryChange={(category) => patch({ category })}
-        />
-
+        {/* 2026-10-04: 「コンディションの選択は2番目くらいの操作がいい。新品か中古かは
+            タイトルに影響するから」という指摘への対応。
+            eBayのConditionはカテゴリーごとに選べる項目が決まる(Metadata API)ため、
+            タイトルより本当に2番目には出せないが、カテゴリー候補(Taxonomy API)→
+            コンディションの順にタイトルより前へ移動した。これで「3.タイトル」で
+            AIタイトルを生成する時点で、すでに新品/中古が分かっている状態になる。
+            ブランド・型番・キーワードはこの下の「5.タイトル」欄に入力する項目だが、
+            値自体はトップレベルのstateで管理しているため、この位置にあっても
+            AI解析(2.)で取得した値や、ここから遡って入力した値を使って検索できる。 */}
         <CategorySuggestSection
           categoryId={state.categoryId}
           categoryName={state.categoryName}
@@ -305,15 +291,35 @@ export function ListingForm({
           }}
         />
 
-        {/* 2026-10-03: 「商品の状態」を先に決めてから、状態に応じた商品仕様を
-            入力する流れの方が自然なため、Conditionを先に表示する(見出し番号
-            2.→7.の順にも合わせている)。 */}
         <DynamicConditionSection
           categoryId={state.categoryId}
           conditionId={state.ebayConditionId}
           onSelect={({ conditionId, conditionDescription }) =>
             patch({ ebayConditionId: conditionId, ebayConditionDescription: conditionDescription })
           }
+        />
+
+        {/* 2026-10-03: 「4と5の違いは何？統合できないの？」という指摘への対応。
+            旧ジャンル選択(手動6択)は、実際にeBayへ送られる本物のカテゴリー
+            (上のeBayカテゴリー候補・Taxonomy API)とは別物で、タイトル欄の
+            旧カテゴリー候補ドロップダウンを切り替えるためだけの暫定機能だった。
+            そのドロップダウンごと廃止したため、ジャンル選択欄も画面から削除した。
+            ジャンルの自動推定(state.genre)自体は裏側に残し、AI説明文下書きの
+            商品種別フォールバックなど小さな用途にのみ引き続き使う。 */}
+        <TitleSection
+          brand={state.brand}
+          model={state.model}
+          keywords={state.keywords}
+          title={state.title}
+          category={state.category}
+          condition={state.condition}
+          ebayConditionDescription={state.ebayConditionDescription}
+          aspectValues={state.aspectValues}
+          onBrandChange={(brand) => patch({ brand })}
+          onModelChange={(model) => patch({ model })}
+          onKeywordsChange={(keywords) => patch({ keywords })}
+          onTitleChange={(title) => patch({ title })}
+          onCategoryChange={(category) => patch({ category })}
         />
 
         <DynamicAspectsSection

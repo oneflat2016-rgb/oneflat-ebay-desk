@@ -88,11 +88,11 @@ export function CategorySuggestSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2 style={{ fontSize: '1.05rem' }}>4. eBayカテゴリー候補(Taxonomy API)</h2>
-        <span className="hint">3のタイトル作成の内容から自動検索されます</span>
+        <h2 style={{ fontSize: '1.05rem' }}>3. eBayカテゴリー候補(Taxonomy API)</h2>
+        <span className="hint">5のタイトル作成の内容から自動検索されます</span>
       </div>
       <p className="subnote">
-        3(タイトル作成)で入力したブランド・型番・キーワード・タイトルから、eBayの実カテゴリーを自動検索します。候補が違う場合だけ、下の欄で検索キーワードを書き換えてください。
+        5(タイトル作成)のブランド・型番・キーワードや、2(AI解析)で取得した情報から、eBayの実カテゴリーを自動検索します。候補が違う場合だけ、下の欄で検索キーワードを書き換えてください。
       </p>
 
       {categoryId && categoryName && (

@@ -73,7 +73,7 @@ export function TitleSection({
   return (
     <section className="card">
       <div className="legend-row">
-        <h2>3. タイトル</h2>
+        <h2>5. タイトル</h2>
         <span className="hint">テンプレートの見出し(H1) / eBayタイトル欄に使用</span>
       </div>
       <p className="subnote">
