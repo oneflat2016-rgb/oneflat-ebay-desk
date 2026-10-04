@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EbayCategorySuggestion } from '@/types/ebay';
 
 /**
@@ -8,6 +8,13 @@ import type { EbayCategorySuggestion } from '@/types/ebay';
  * ブランドが特定できない商品でも、商品種別(productType)などのキーワードで
  * カテゴリーを絞り込めるようにする(ブランド不明品への対応)。
  * §117-2: カテゴリーはハードコードせず、必ずeBayから返ってきた候補のみを選択できる。
+ *
+ * 2026-10-04: 「ここは入力せずに、3(タイトル作成)に入力した情報から判断できるのでは？
+ * 簡素化して」という指摘への対応。
+ * これまでは検索キーワードを毎回手入力してボタンを押す必要があったが、タイトル欄
+ * (ブランド・型番・キーワード・タイトル)の内容が変わるたびに自動で検索するようにし、
+ * 手入力・ボタン操作を無くした。手入力欄は、自動検索の結果が合わない場合の
+ * 上書き用として残す。
  */
 export function CategorySuggestSection({
   categoryId,
@@ -27,16 +34,20 @@ export function CategorySuggestSection({
     text: '',
     kind: '',
   });
+  // ユーザーが手入力欄を一度でも手動編集したら、以降はdefaultQueryの変化による
+  // 自動上書き・自動再検索を止める(手動編集を優先する)。
+  const userEditedRef = useRef(false);
+  const lastAutoSearchedRef = useRef<string>('');
 
-  async function handleSearch() {
-    if (!query.trim()) {
+  async function handleSearch(q: string) {
+    if (!q.trim()) {
       setStatus({ text: '検索キーワードを入力してください(例: 商品種別・型番など)。', kind: 'warn' });
       return;
     }
     setLoading(true);
     setStatus({ text: '', kind: '' });
     try {
-      const res = await fetch(`/api/ebay/categories/suggest?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/ebay/categories/suggest?q=${encodeURIComponent(q)}`);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message ?? `HTTP ${res.status}`);
@@ -49,7 +60,7 @@ export function CategorySuggestSection({
     } catch (err) {
       setStatus({
         text:
-          'カテゴリー候補が取得できませんでした。下の自由入力欄に手入力を続けてください。' +
+          'カテゴリー候補が取得できませんでした。下の入力欄で手入力を続けてください。' +
           (err instanceof Error ? ` (${err.message})` : ''),
         kind: 'err',
       });
@@ -58,14 +69,30 @@ export function CategorySuggestSection({
     }
   }
 
+  // defaultQuery(タイトル欄の内容)が変わるたびに、1.2秒入力が止まったら自動検索する。
+  // すでにカテゴリーが選択済みの間、またはユーザーが手入力欄を編集した後は自動実行しない。
+  useEffect(() => {
+    if (categoryId) return;
+    if (userEditedRef.current) return;
+    const next = (defaultQuery ?? '').trim();
+    if (!next || next === lastAutoSearchedRef.current) return;
+    setQuery(next);
+    const timer = setTimeout(() => {
+      lastAutoSearchedRef.current = next;
+      handleSearch(next);
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultQuery, categoryId]);
+
   return (
     <section className="card">
       <div className="legend-row">
         <h2 style={{ fontSize: '1.05rem' }}>4. eBayカテゴリー候補(Taxonomy API)</h2>
-        <span className="hint">ブランドが分からない商品でも種別から検索できます</span>
+        <span className="hint">3のタイトル作成の内容から自動検索されます</span>
       </div>
       <p className="subnote">
-        英語のキーワード(商品種別・型番など)を入れて検索すると、eBayの実カテゴリーを検索できます。
+        3(タイトル作成)で入力したブランド・型番・キーワード・タイトルから、eBayの実カテゴリーを自動検索します。候補が違う場合だけ、下の欄で検索キーワードを書き換えてください。
       </p>
 
       {categoryId && categoryName && (
@@ -81,18 +108,21 @@ export function CategorySuggestSection({
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            userEditedRef.current = true;
+            setQuery(e.target.value);
+          }}
           placeholder="例: wristwatch, kitchen knife"
           style={{ flex: 1 }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              handleSearch();
+              handleSearch(query);
             }
           }}
         />
-        <button type="button" className="btn" onClick={handleSearch} disabled={loading}>
-          {loading ? '検索中…' : '候補を検索'}
+        <button type="button" className="btn" onClick={() => handleSearch(query)} disabled={loading}>
+          {loading ? '検索中…' : '再検索'}
         </button>
       </div>
 

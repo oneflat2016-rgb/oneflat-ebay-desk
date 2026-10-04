@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import type { ListingFormState } from '@/types/listing';
 import type { EbayAspectDefinition } from '@/types/ebay';
 import { createEmptyListingFormState } from '@/lib/listing/defaultState';
@@ -137,6 +137,25 @@ export function ListingForm({
     });
   }, [state.title, state.brand, state.keywords, state.genre]);
 
+  /**
+   * 2026-10-04: 本番実商品テストで出た「保存してから出品を開始するのが使いにくい」
+   * という指摘への対応。
+   * これまでは「出品を開始する」ボタンを明示的に1回押してproducts行を作成しないと
+   * 写真アップロードやAI解析が使えなかった(productIdがまだ無いため)。
+   * ここではページを開いた時点で自動的に(裏側で)1回だけ保存を実行し、productIdを
+   * 作っておくことで、ユーザーが手動でボタンを押す手間を無くす。
+   * 失敗した場合(未ログインなど)はSaveStatusLabelにエラーが表示され、再試行ボタンで
+   * やり直せる。
+   */
+  const hasAutoSavedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoSavedRef.current) return;
+    if (identity.productId) return;
+    hasAutoSavedRef.current = true;
+    handleSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleAspectValueChange(aspectName: string, values: string[]) {
     setState((prev) => ({ ...prev, aspectValues: { ...prev.aspectValues, [aspectName]: values } }));
   }
@@ -215,13 +234,15 @@ export function ListingForm({
   return (
     <div className="layout">
       <div className="form-col">
-        {/* §110 step3 追加: ページ上部にも同じ「出品を開始する」ボタンを置く。
-            下までスクロールしなくても、最初に押すべき操作がすぐ見つかるようにする。 */}
+        {/* 2026-10-04: ページを開いた時点で自動的に保存(商品の下準備)が走るため、
+            明示的に押すボタンは不要になった。保存状況の表示と、失敗時の再試行だけ残す。 */}
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? '出品を開始しています…' : '出品を開始する'}
-          </button>
           <SaveStatusLabel status={saveStatus} />
+          {saveStatus.kind === 'error' && (
+            <button type="button" className="btn" onClick={handleSave} disabled={isSaving}>
+              再試行
+            </button>
+          )}
         </div>
 
         <ImagesSection productId={identity.productId} />
@@ -264,7 +285,9 @@ export function ListingForm({
         <CategorySuggestSection
           categoryId={state.categoryId}
           categoryName={state.categoryName}
-          defaultQuery={[state.model, state.brand].filter(Boolean).join(' ')}
+          defaultQuery={
+            state.title || [state.model, state.brand, state.keywords].filter(Boolean).join(' ')
+          }
           onSelect={({ categoryTreeId, categoryId, categoryName }) => {
             // カテゴリーが変わったら、旧カテゴリーのAspect/Condition定義・入力値をクリアする
             // (別カテゴリーの値を引き継がないため、§117-2/§117-4)。
@@ -453,8 +476,8 @@ export function ListingForm({
         />
 
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button type="button" className="btn primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? '出品を開始しています…' : '出品を開始する'}
+          <button type="button" className="btn" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? '保存しています…' : '保存する'}
           </button>
           <button type="button" className="btn" onClick={handleClear}>
             クリアして次の商品へ
@@ -486,7 +509,7 @@ export function ListingForm({
  */
 function SaveStatusLabel({ status }: { status: SaveStatus }) {
   if (status.kind === 'idle') {
-    return <span className="hint">まだ出品を開始していません</span>;
+    return <span className="hint">商品を準備しています…</span>;
   }
   if (status.kind === 'saving') {
     return <span className="hint">出品情報を保存しています…</span>;

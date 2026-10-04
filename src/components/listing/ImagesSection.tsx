@@ -80,7 +80,7 @@ export function ImagesSection({ productId }: { productId: string | null }) {
 
       {!productId ? (
         <p className="subnote">
-          写真を追加するには、先に「出品を開始する」ボタンを1回押して商品を登録してください(登録後にこの欄が使えるようになります)。
+          商品を準備しています…(自動的に保存されます。数秒後にこの欄が使えるようになります)
         </p>
       ) : (
         <>
