@@ -14,9 +14,13 @@
   --danger: #b3261e;
   --focus: #8b3a5c;
   --shadow: 0 1px 2px rgba(32, 38, 31, 0.08), 0 8px 24px -12px rgba(32, 38, 31, 0.24);
-  --font-display: 'Fraunces', Georgia, 'Noto Serif JP', serif;
-  --font-body: 'Public Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-display: var(--font-fraunces), var(--font-noto-serif-jp), Georgia, 'Noto Serif JP', serif;
+  --font-body: var(--font-public-sans), var(--font-noto-sans-jp), 'Hiragino Kaku Gothic ProN',
+    'Noto Sans JP', system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,12 +53,23 @@ body {
 
 body {
   background: var(--bg);
+  background-image: radial-gradient(
+    ellipse 900px 480px at 50% -120px,
+    color-mix(in srgb, var(--accent) 7%, transparent),
+    transparent 70%
+  );
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-body);
   padding-inline: 16px;
-  padding-block: 28px 96px; /* 下部固定アクションバー分の余白(§88) */
+  padding-block: calc(env(safe-area-inset-top, 0px) + 20px) 96px; /* 下部固定アクションバー分の余白(§88) */
   max-width: 1180px;
   margin: 0 auto;
+}
+@media (max-width: 520px) {
+  body {
+    padding-inline: 14px;
+  }
 }
 
 h1,
@@ -69,15 +84,54 @@ p {
   margin: 0;
 }
 
+.page-header {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.page-header-eyebrow {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 0.3em 0.8em;
+  border-radius: 100px;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 20px;
+  border-radius: var(--radius-md);
+  padding: 22px 20px;
   box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  opacity: 0.85;
 }
 .card + .card {
-  margin-top: 18px;
+  margin-top: 16px;
+}
+@media (max-width: 520px) {
+  .card {
+    padding: 18px 16px;
+    border-radius: var(--radius-sm);
+  }
 }
 
 .legend-row {
@@ -85,15 +139,21 @@ p {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 .legend-row h2 {
-  font-size: 1.05rem;
+  font-size: 1.08rem;
+  letter-spacing: 0.01em;
 }
 .legend-row .hint {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: var(--muted);
   font-family: var(--font-mono);
+  background: var(--surface-2);
+  padding: 0.2em 0.6em;
+  border-radius: 100px;
+  line-height: 1.6;
 }
 
 .field-grid {
@@ -127,9 +187,11 @@ textarea {
   color: var(--ink);
   background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0.6em 0.7em;
+  border-radius: var(--radius-sm);
+  padding: 0.75em 0.85em;
+  min-height: 48px;
   width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 textarea {
   resize: vertical;
@@ -141,6 +203,15 @@ input[type='text']:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+input[type='color'] {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  padding: 2px;
+  cursor: pointer;
 }
 
 .bilingual-grid {
@@ -187,17 +258,26 @@ textarea:focus {
   display: block;
   font-size: 0.9rem;
   padding: 0.75em 1.05em;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
   border: 1px solid var(--line-strong);
   border-radius: 100px;
   color: var(--ink);
   background: var(--surface-2);
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .pill input:checked + span {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.pill input:focus-visible + span {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 28%, transparent);
 }
 
 .check-row {
@@ -230,20 +310,34 @@ textarea:focus {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.85rem;
-  border-radius: 7px;
-  padding: 0.6em 1.1em;
+  border-radius: var(--radius-sm);
+  padding: 0.7em 1.2em;
+  min-height: 44px;
   border: 1px solid var(--line-strong);
   background: var(--surface-2);
   color: var(--ink);
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease,
+    transform 0.1s ease;
 }
 .btn:hover {
   border-color: var(--accent);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 28%, transparent);
 }
 .btn.primary {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.btn.primary:hover {
+  filter: brightness(1.05);
 }
 .btn.ghost {
   background: transparent;
@@ -256,6 +350,12 @@ textarea:focus {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+}
+@media (pointer: coarse) {
+  .btn {
+    min-height: 48px;
+  }
 }
 
 .actions-row {
@@ -328,9 +428,12 @@ textarea:focus {
   bottom: 0;
   display: flex;
   gap: 10px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
-  background: var(--surface);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
   border-top: 1px solid var(--line);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: 0 -8px 24px -12px rgba(32, 38, 31, 0.24);
   z-index: 20;
 }

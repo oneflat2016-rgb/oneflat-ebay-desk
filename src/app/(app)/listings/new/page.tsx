@@ -16,16 +16,12 @@ export default async function NewListingPage() {
   const isAdmin = profile?.role === 'ADMIN';
   return (
     <main>
-      <header className="page" style={{ marginBottom: 26, paddingBottom: 18, borderBottom: '2px solid var(--line-strong)' }}>
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: '.72rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--accent)' }}>
-            ONEFLAT EBAY LISTING DESK
-          </div>
-          <h1 style={{ fontSize: 'clamp(1.5rem,3vw,2.1rem)' }}>eBay出品アプリ</h1>
-          <p className="subnote" style={{ maxWidth: '50ch' }}>
-            いつものテンプレートに、商品ごとに変わる部分だけ入力すると、そのまま貼り付けられる説明文HTMLが組み上がります。
-          </p>
-        </div>
+      <header className="page-header">
+        <span className="page-header-eyebrow">ONEFLAT EBAY LISTING DESK</span>
+        <h1 style={{ fontSize: 'clamp(1.5rem,3vw,2.1rem)' }}>eBay出品アプリ</h1>
+        <p className="subnote" style={{ maxWidth: '50ch' }}>
+          いつものテンプレートに、商品ごとに変わる部分だけ入力すると、そのまま貼り付けられる説明文HTMLが組み上がります。
+        </p>
       </header>
       <ListingForm initialState={initialState} isAdmin={isAdmin} />
     </main>
