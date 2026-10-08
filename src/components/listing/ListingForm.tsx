@@ -72,6 +72,18 @@ export function ListingForm({
   // §39-42(§110 step7): 現在のカテゴリーに対応するeBay Aspect定義。
   // 保存時にstate.aspectValuesと突き合わせてrequired/usage/dataTypeを一緒に保存するために保持する。
   const [ebayAspects, setEbayAspects] = useState<EbayAspectDefinition[]>([]);
+  /**
+   * 2026-10-08: 「なんかわかりにくいな。もっとアプリ風に」という指摘への対応。
+   * TODO(§30-31)で予告されていた「STEP1(写真)/STEP2(出品情報)/STEP3(最終確認)の
+   * ウィザード」をここで実装する。データは今まで通り単一のstateで一括管理し、
+   * 表示だけを3ステップに分割する(display:noneで隠すだけで、各セクションは
+   * マウントしたままにして入力内容やeBayから取得済みの候補を保持する)。
+   */
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const goToStep = (next: 1 | 2 | 3) => {
+    setStep(next);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const patch = useCallback((partial: Partial<ListingFormState>) => {
     setState((prev) => ({ ...prev, ...partial }));
@@ -245,7 +257,16 @@ export function ListingForm({
           )}
         </div>
 
-        <ImagesSection productId={identity.productId} />
+        <StepTabs step={step} onChange={goToStep} />
+
+        {publishStatus.kind !== 'idle' && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <PublishStatusLabel status={publishStatus} />
+          </div>
+        )}
+
+        <div style={{ display: step === 1 ? 'block' : 'none' }}>
+          <ImagesSection productId={identity.productId} />
 
         <AiAnalysisSection
           productId={identity.productId}
@@ -259,6 +280,9 @@ export function ListingForm({
           }
         />
 
+        </div>
+
+        <div style={{ display: step === 2 ? 'block' : 'none' }}>
         {/* 2026-10-04: 「コンディションの選択は2番目くらいの操作がいい。新品か中古かは
             タイトルに影響するから」という指摘への対応。
             eBayのConditionはカテゴリーごとに選べる項目が決まる(Metadata API)ため、
@@ -450,6 +474,9 @@ export function ListingForm({
           </p>
         </section>
 
+        </div>
+
+        <div style={{ display: step === 3 ? 'block' : 'none' }}>
         <ChecklistSection checklist={state.checklist} onToggle={handleChecklistToggle} />
 
         <PrelistingAiCheckSection
@@ -482,29 +509,71 @@ export function ListingForm({
         />
 
         <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button type="button" className="btn" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? '保存しています…' : '保存する'}
-          </button>
           <button type="button" className="btn" onClick={handleClear}>
             クリアして次の商品へ
           </button>
-          <SaveStatusLabel status={saveStatus} />
+        </div>
         </div>
 
-        <div className="actions-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn primary"
-            onClick={handlePublish}
-            disabled={isPublishing || isSaving}
-          >
-            {isPublishing ? 'eBayへ出品しています…' : 'eBayへ出品する(Publish)'}
+        {/* 2026-10-08: アプリ風の操作感にするため、保存・ステップ移動・出品を
+            画面下部に固定したツールバーへ統一する(globals.cssに元々あったが
+            どこからも使われていなかった.mobile-action-barを活用)。 */}
+        <div className="mobile-action-bar">
+          <button type="button" className="btn" onClick={() => goToStep((step - 1) as 1 | 2 | 3)} disabled={step === 1}>
+            ← 戻る
           </button>
-          <PublishStatusLabel status={publishStatus} />
+          <button type="button" className="btn" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? '保存中…' : '保存'}
+          </button>
+          {step < 3 ? (
+            <button type="button" className="btn primary" onClick={() => goToStep((step + 1) as 1 | 2 | 3)}>
+              次へ →
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn primary"
+              onClick={handlePublish}
+              disabled={isPublishing || isSaving}
+            >
+              {isPublishing ? '出品しています…' : 'eBayへ出品する'}
+            </button>
+          )}
         </div>
       </div>
 
       <PreviewPanel state={state} />
+    </div>
+  );
+}
+
+/**
+ * 2026-10-08: 「もっとアプリ風に」という指摘への対応。
+ * 21個のセクションが縦に全部並ぶ単一フォームを、写真→商品情報→最終確認の
+ * 3ステップに分けて表示するためのタブ。クリックで自由に行き来できる
+ * (入力途中で前の内容を確認したくなるケースが多いため、順番を強制しない)。
+ */
+function StepTabs({ step, onChange }: { step: 1 | 2 | 3; onChange: (step: 1 | 2 | 3) => void }) {
+  const steps: { n: 1 | 2 | 3; label: string }[] = [
+    { n: 1, label: '写真・AI解析' },
+    { n: 2, label: '商品情報' },
+    { n: 3, label: '最終確認・出品' },
+  ];
+  return (
+    <div className="step-tabs" role="tablist" aria-label="出品ステップ">
+      {steps.map((s) => (
+        <button
+          key={s.n}
+          type="button"
+          role="tab"
+          aria-selected={step === s.n}
+          className={`step-tab${step === s.n ? ' active' : ''}`}
+          onClick={() => onChange(s.n)}
+        >
+          <span className="step-tab-num">{s.n}</span>
+          <span className="step-tab-label">{s.label}</span>
+        </button>
+      ))}
     </div>
   );
 }

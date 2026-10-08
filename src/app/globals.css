@@ -420,6 +420,75 @@ input[type='color'] {
   background: #fff;
 }
 
+/* 2026-10-08: 「もっとアプリ風に」の対応で追加したステップタブ(1.写真/2.商品情報/
+   3.最終確認)。ページ上部に貼り付けて、今どのステップにいるか一目で分かるようにする。 */
+.step-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  z-index: 15;
+}
+.step-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0.4em 0.6em;
+  border: none;
+  border-radius: 100px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.step-tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  flex: none;
+}
+.step-tab-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step-tab.active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.step-tab.active .step-tab-num {
+  background: var(--accent);
+}
+@media (max-width: 420px) {
+  .step-tab-label {
+    display: none;
+  }
+  .step-tab-num {
+    width: 24px;
+    height: 24px;
+    font-size: 0.78rem;
+  }
+}
+
 /* §88 スマホ用の下部固定アクションバー */
 .mobile-action-bar {
   position: fixed;
