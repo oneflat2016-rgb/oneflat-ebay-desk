@@ -2,6 +2,7 @@
 
 import { getCurrentProfile } from '@/lib/auth/getCurrentProfile';
 import * as listingsRepo from '@/repositories/listings';
+import { recordPriceChange } from '@/repositories/priceHistory';
 import { updateOffer } from '@/services/ebay/inventory';
 import { resolveOfferUpdateContext } from './offerUpdateHelpers';
 
@@ -54,6 +55,12 @@ export async function updateListingPrice(
 
     if (detail.listingDraftId) {
       await listingsRepo.updateDraftPriceOnly(detail.listingDraftId, newPrice);
+    }
+
+    // §33: 値下げ履歴に記録する(値段が変わっていない場合はrecordPriceChange内でスキップされる)。
+    const oldPrice = detail.price !== null ? Number(detail.price) : null;
+    if (oldPrice !== null) {
+      await recordPriceChange(listingId, oldPrice, newPrice, detail.currency ?? 'USD', profile.id);
     }
 
     return { ok: true };

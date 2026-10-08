@@ -1,5 +1,6 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { getSellThroughByCategory, getSellThroughOverview } from '@/repositories/analytics';
+import { getLastPriceDropMap } from '@/repositories/priceHistory';
 
 /**
  * §35(Phase6実装仕様, 2026-09-29): 売れない商品の改善提案(第一段階)。
@@ -10,15 +11,16 @@ import { getSellThroughByCategory, getSellThroughOverview } from '@/repositories
  * 平均/中央値販売日数)に限定している。
  *
  * 仕様書は本来、View/Watch(§34)・値下げ履歴(§33)も判断材料に使うことを
- * 想定しているが、これらはまだ本番環境に反映されていない(traffic_snapshots・
- * listing_price_historyが未適用)。そのため今回はこの2系統のルールは実装せず、
- * それらのデータが揃った時点でルールを追加できるよう、判定ロジックを
- * 1ルール=1関数の形にして拡張しやすくしてある(下記「拡張ポイント」を参照)。
+ * 想定している。§33(値下げ履歴, listing_price_history)は2026-10-08に
+ * 実装済みのため、「直近30日値下げなし」ルールをここに追加した
+ * (evaluateNoRecentPriceDropRule)。§34(View/Watch)はまだ本番環境に
+ * 反映されていない(traffic_snapshotsが未適用)ため、引き続き未実装。
+ * 判定ロジックは1ルール=1関数の形にして拡張しやすくしてある
+ * (下記「拡張ポイント」を参照)。
  *
  * 拡張ポイント(Phase6の他データが適用された後に追加する想定):
  *   - View多い/Watch多いのに販売なし → 価格・送料が障壁の可能性
  *   - Impression少ない → カテゴリー・タイトル・Item Specificsの見直し
- *   - 直近30日値下げなし → 値下げ提案
  */
 
 export type SuggestionSeverity = 'critical' | 'warning' | 'notice';
@@ -100,6 +102,24 @@ function evaluateCategoryPaceRule(
 }
 
 /**
+ * 直近30日値下げが無いかどうかを判定するルール(§33の値下げ履歴を使う)。
+ * 出品からまだ30日経っていない商品は「値下げの検討時期ではない」として対象外。
+ */
+function evaluateNoRecentPriceDropRule(
+  daysSincePublished: number,
+  lastDrop: { createdAt: string } | undefined,
+): { severity: SuggestionSeverity; reason: string } | null {
+  if (daysSincePublished < 30) return null;
+
+  const daysSinceDrop = lastDrop ? daysBetween(lastDrop.createdAt, new Date().toISOString()) : null;
+  if (daysSinceDrop !== null && daysSinceDrop < 30) return null; // 直近30日以内に値下げ済み
+
+  return lastDrop
+    ? { severity: 'notice', reason: `前回の値下げから${daysSinceDrop}日が経過しています。価格の見直しを検討してください。` }
+    : { severity: 'notice', reason: '出品後、一度も値下げをしていません。価格の見直しを検討してください。' };
+}
+
+/**
  * §35の第一段階: 出品中(ACTIVE)の商品について、経過日数とカテゴリー実績から
  * ルールベースで改善提案を作成する。全社実績が薄いカテゴリーでは全体平均を
  * フォールバックとして使う。
@@ -116,7 +136,12 @@ export async function getImprovementSuggestions(limit = 30): Promise<Improvement
     .not('published_at', 'is', null);
   if (error) throw error;
 
-  const [categoryStats, overview] = await Promise.all([getSellThroughByCategory(), getSellThroughOverview()]);
+  const listingIds = ((data ?? []) as unknown as ActiveListingRow[]).map((r) => r.id);
+  const [categoryStats, overview, lastPriceDropMap] = await Promise.all([
+    getSellThroughByCategory(),
+    getSellThroughOverview(),
+    getLastPriceDropMap(listingIds),
+  ]);
   const categoryById = new Map(categoryStats.map((c) => [c.categoryId, c]));
 
   const now = new Date().toISOString();
@@ -148,6 +173,14 @@ export async function getImprovementSuggestions(limit = 30): Promise<Improvement
       // カテゴリー実績が薄い場合のフォールバック: 全社の中央値と比較する。
       reasons.push(`全社の中央値販売日数(${overview.medianDaysToSell}日)の2倍以上、出品期間が経過しています(カテゴリー別の実績はまだ十分ではありません)。`);
       if (!severity) severity = 'notice';
+    }
+
+    const noRecentDrop = evaluateNoRecentPriceDropRule(daysSincePublished, lastPriceDropMap.get(raw.id));
+    if (noRecentDrop) {
+      reasons.push(noRecentDrop.reason);
+      if (!severity || SEVERITY_RANK[noRecentDrop.severity] < SEVERITY_RANK[severity]) {
+        severity = noRecentDrop.severity;
+      }
     }
 
     if (!severity || reasons.length === 0) continue;

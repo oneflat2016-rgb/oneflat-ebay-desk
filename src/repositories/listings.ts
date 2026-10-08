@@ -459,6 +459,36 @@ export async function listPublishedListings(): Promise<PublishedListingListItem[
   });
 }
 
+export interface ListingSummary {
+  id: string;
+  sku: string;
+  title: string | null;
+}
+
+/**
+ * §33(Phase6実装仕様, 2026-10-08): 価格変更履歴画面で、対象Listingの
+ * タイトル・SKUだけを表示するための軽量な取得関数。
+ */
+export async function getListingSummary(listingId: string): Promise<ListingSummary | null> {
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('listings')
+    .select('id, sku, listing_draft:listing_drafts ( title )')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const draftRaw = data.listing_draft as { title: string | null } | { title: string | null }[] | null;
+  const draft = Array.isArray(draftRaw) ? draftRaw[0] : draftRaw;
+
+  return {
+    id: data.id as string,
+    sku: data.sku as string,
+    title: draft?.title ?? null,
+  };
+}
+
 /**
  * §110 step12(2026-09-26追加): 価格改定機能。
  * eBay Offerを更新(PUT)するには、価格以外にもcategoryId・保管場所・各種ポリシー・

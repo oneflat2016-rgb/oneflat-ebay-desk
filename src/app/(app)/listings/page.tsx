@@ -93,6 +93,9 @@ export default async function ListingsIndexPage() {
                   <td style={{ padding: '8px 10px' }}>
                     <EndListingButton listingId={listing.id} editable={listing.status === 'ACTIVE'} />
                     <RelistButton listingId={listing.id} editable={listing.status === 'ENDED'} />
+                    <Link href={`/listings/${listing.id}/price-history`} className="btn" style={{ fontSize: '.75rem', padding: '2px 8px' }}>
+                      価格履歴
+                    </Link>
                   </td>
                 </tr>
               ))}
