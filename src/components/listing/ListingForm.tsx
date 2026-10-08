@@ -62,6 +62,8 @@ export function ListingForm({
   initialIdentity?: SaveListingIdentity;
   isAdmin?: boolean;
 }) {
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 8));
+  console.log('[DEBUG] ListingForm render. instanceId=', instanceIdRef.current);
   const [state, setState] = useState<ListingFormState>(initialState);
   const [identity, setIdentity] = useState<SaveListingIdentity>(
     initialIdentity ?? { productId: null, productVersion: null, draftId: null, draftVersion: null },
@@ -162,9 +164,11 @@ export function ListingForm({
    */
   const hasAutoSavedRef = useRef(false);
   useEffect(() => {
+    console.log('[DEBUG] mount-effect fired. hasAutoSavedRef=', hasAutoSavedRef.current, 'identity.productId=', identity.productId);
     if (hasAutoSavedRef.current) return;
     if (identity.productId) return;
     hasAutoSavedRef.current = true;
+    console.log('[DEBUG] mount-effect calling handleSave() to create product');
     handleSave();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -216,13 +220,22 @@ export function ListingForm({
   }, []);
 
   useEffect(() => {
+    console.log('[DEBUG] debounce-effect fired. skipFirst=', skipFirstAutoSaveEffectRef.current, 'productId=', identity.productId);
     if (skipFirstAutoSaveEffectRef.current) {
       skipFirstAutoSaveEffectRef.current = false;
+      console.log('[DEBUG] debounce-effect: skipping first run');
       return;
     }
-    if (!identity.productId) return; // 商品の下準備がまだの間は自動保存しない
+    if (!identity.productId) {
+      console.log('[DEBUG] debounce-effect: no productId yet, skip');
+      return; // 商品の下準備がまだの間は自動保存しない
+    }
     const snapshot = JSON.stringify(state);
-    if (snapshot === lastSavedSnapshotRef.current) return; // 内容が実質的に変わっていなければ何もしない
+    if (snapshot === lastSavedSnapshotRef.current) {
+      console.log('[DEBUG] debounce-effect: content unchanged, skip scheduling');
+      return; // 内容が実質的に変わっていなければ何もしない
+    }
+    console.log('[DEBUG] debounce-effect: content CHANGED, scheduling autosave in 1.5s');
     dirtyRef.current = true;
     scheduleAutoSave();
     return () => {
@@ -259,6 +272,7 @@ export function ListingForm({
   }
 
   function handleSave() {
+    console.log('[DEBUG] handleSave() called. current identity=', identity);
     isSavingRef.current = true;
     // 今回保存しにいく内容をスナップショットしておく(自動保存の重複スケジュール防止用)。
     lastSavedSnapshotRef.current = JSON.stringify(state);

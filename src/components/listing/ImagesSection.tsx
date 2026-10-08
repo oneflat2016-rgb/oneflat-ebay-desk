@@ -23,13 +23,17 @@ export function ImagesSection({ productId }: { productId: string | null }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    console.log('[DEBUG][ImagesSection] productId effect fired. productId=', productId);
     if (!productId) {
       setImages([]);
       return;
     }
     setIsLoading(true);
     listProductImages(productId)
-      .then((rows) => setImages(rows))
+      .then((rows) => {
+        console.log('[DEBUG][ImagesSection] listProductImages resolved, count=', rows.length);
+        setImages(rows);
+      })
       .catch(() => setError('画像一覧の取得に失敗しました。'))
       .finally(() => setIsLoading(false));
   }, [productId]);
@@ -39,6 +43,7 @@ export function ImagesSection({ productId }: { productId: string | null }) {
     setError(null);
     const files = Array.from(fileList);
 
+    console.log('[DEBUG][ImagesSection] handleFilesSelected called. productId=', productId, 'fileCount=', fileList.length);
     startUpload(async () => {
       for (const file of files) {
         const formData = new FormData();
