@@ -509,3 +509,175 @@ input[type='color'] {
 .mobile-action-bar .btn {
   flex: 1;
 }
+
+/* §49/2026-10-08 ダッシュボード: 出品CTAを最上部の目立つ導線に、
+   それ以外の文字量・情報密度を減らすためのスタイル。 */
+.dashboard-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 78%, var(--accent-2)));
+  color: var(--accent-ink);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dashboard-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(32, 38, 31, 0.1), 0 14px 32px -14px rgba(32, 38, 31, 0.32);
+}
+.dashboard-cta:active {
+  transform: translateY(1px);
+}
+.dashboard-cta-icon {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+.dashboard-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.dashboard-cta-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.dashboard-cta-sub {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.dashboard-cta-arrow {
+  font-size: 1.3rem;
+  opacity: 0.85;
+}
+
+.dashboard-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.dashboard-links a {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.dashboard-links a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.dashboard-period-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.dashboard-period-btn {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  font-weight: 400;
+}
+.dashboard-period-btn[data-active='true'] {
+  font-weight: 700;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.dashboard-kpi-card {
+  padding: 12px 14px;
+}
+.dashboard-kpi-card[data-highlight='true'] {
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+.dashboard-kpi-card[data-highlight='true']::before {
+  background: var(--danger);
+}
+.dashboard-kpi-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.dashboard-kpi-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-kpi-note {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dashboard-disclaimer {
+  margin-bottom: 18px;
+}
+.dashboard-disclaimer summary {
+  font-size: 0.76rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.dashboard-disclaimer p {
+  margin-top: 6px;
+}
+
+.dashboard-section {
+  margin-bottom: 18px;
+}
+.dashboard-section h2 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+
+.dashboard-attention-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dashboard-attention-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dashboard-attention-row:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+.dashboard-attention-title {
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.dashboard-attention-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .dashboard-cta-sub {
+    display: none;
+  }
+}

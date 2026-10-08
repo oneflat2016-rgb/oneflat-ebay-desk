@@ -7,11 +7,11 @@ import type { DashboardPeriodKey } from '@/repositories/dashboard';
 
 const PERIOD_OPTIONS: { key: DashboardPeriodKey; label: string }[] = [
   { key: 'today', label: '今日' },
-  { key: '7d', label: '直近7日間' },
-  { key: '30d', label: '直近30日間' },
+  { key: '7d', label: '7日' },
+  { key: '30d', label: '30日' },
   { key: 'thisMonth', label: '今月' },
   { key: 'lastMonth', label: '先月' },
-  { key: '90d', label: '直近90日間' },
+  { key: '90d', label: '90日' },
 ];
 
 function formatJpy(value: number): string {
@@ -22,6 +22,10 @@ function formatJpy(value: number): string {
  * §49(Phase6実装仕様, 2026-09-29): ダッシュボードのKPI/トレンド/要対応セクション。
  * 初期データはServer Component(page.tsx)から受け取り、期間セレクタ操作時のみ
  * Server Action(actions.ts)を呼んで再取得する(他の一覧画面と同じuseTransitionパターン)。
+ *
+ * 2026-10-08: 「文字が多くてわかりにくい」という要望に対応し、KPIカードを
+ * デザインシステムの.cardに揃え、為替レートの注記は<details>に畳んで
+ * 初期表示の文字量を減らした。
  */
 export function DashboardClient({ initial, initialPeriod }: { initial: DashboardResult; initialPeriod: DashboardPeriodKey }) {
   const [period, setPeriod] = useState<DashboardPeriodKey>(initialPeriod);
@@ -41,101 +45,75 @@ export function DashboardClient({ initial, initialPeriod }: { initial: Dashboard
 
   return (
     <div style={{ opacity: isPending ? 0.6 : 1, transition: 'opacity .15s' }}>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
+      <div className="dashboard-period-row" role="tablist" aria-label="集計期間">
         {PERIOD_OPTIONS.map((opt) => (
           <button
             key={opt.key}
             type="button"
-            className="btn"
+            role="tab"
+            aria-selected={period === opt.key}
+            className="btn dashboard-period-btn"
             onClick={() => handlePeriodChange(opt.key)}
-            style={{
-              fontSize: '.8rem',
-              padding: '4px 10px',
-              fontWeight: period === opt.key ? 700 : 400,
-              borderColor: period === opt.key ? 'var(--accent)' : undefined,
-            }}
+            data-active={period === opt.key}
           >
             {opt.label}
           </button>
         ))}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: 12,
-          marginBottom: 24,
-        }}
-      >
+      <div className="dashboard-kpi-grid">
         {canSeeFinancials && (
-          <KpiCard label={`${kpis.period.label}の売上(概算)`} value={formatJpy(kpis.periodSalesJpy)} />
+          <KpiCard label={`${kpis.period.label}の売上`} value={formatJpy(kpis.periodSalesJpy)} />
         )}
         {canSeeFinancials && (
           <KpiCard
-            label={`${kpis.period.label}の粗利(概算)`}
+            label={`${kpis.period.label}の粗利`}
             value={kpis.periodGrossProfitJpy !== null ? formatJpy(kpis.periodGrossProfitJpy) : '算出不可'}
-            note={
-              kpis.costUnknownCount > 0
-                ? `原価未登録${kpis.costUnknownCount}件を除く`
-                : undefined
-            }
+            note={kpis.costUnknownCount > 0 ? `原価未登録${kpis.costUnknownCount}件を除く` : undefined}
           />
         )}
         <KpiCard label={`${kpis.period.label}の販売件数`} value={`${kpis.periodSoldCount}件`} />
-        <KpiCard label="出品中の件数" value={`${kpis.activeListingCount}件`} />
+        <KpiCard label="出品中" value={`${kpis.activeListingCount}件`} />
         <KpiCard
           label="平均販売日数"
           value={kpis.averageDaysToSellInPeriod !== null ? `${kpis.averageDaysToSellInPeriod.toFixed(1)}日` : '-'}
         />
-        <KpiCard label="30日以上未販売" value={`${kpis.unsoldOver30Days}件`} />
+        <KpiCard label="30日以上未販売" value={`${kpis.unsoldOver30Days}件`} highlight={kpis.unsoldOver30Days > 0} />
       </div>
 
       {canSeeFinancials && (
-        <p className="subnote" style={{ marginTop: -14, marginBottom: 20 }}>
-          ※売上・粗利は概算為替レート(¥{kpis.jpyPerUsd}/USD)で換算した概算値です。実際の入金額とは差異が生じます。
-        </p>
+        <details className="dashboard-disclaimer">
+          <summary>売上・粗利の算出について</summary>
+          <p className="subnote">
+            概算為替レート(¥{kpis.jpyPerUsd}/USD)で換算した概算値です。実際の入金額とは差異が生じます。
+          </p>
+        </details>
       )}
 
-      <section style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 10 }}>販売推移</h2>
+      <section className="card dashboard-section">
+        <h2>販売推移</h2>
         <TrendChart trend={trend} showAmount={canSeeFinancials} />
       </section>
 
-      <section>
-        <h2 style={{ fontSize: '1.1rem', marginBottom: 10 }}>要対応(60日以上未販売)</h2>
+      <section className="card dashboard-section">
+        <h2>要対応(60日以上未販売)</h2>
         {attention.length === 0 ? (
-          <p className="subnote">現在、60日以上未販売のまま出品中の商品はありません。</p>
+          <p className="subnote">現在、対象の商品はありません。</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.88rem' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--line-strong)' }}>
-                  <th style={{ padding: '6px 10px' }}>タイトル</th>
-                  <th style={{ padding: '6px 10px' }}>SKU</th>
-                  <th style={{ padding: '6px 10px' }}>経過日数</th>
-                  <th style={{ padding: '6px 10px' }}>価格</th>
-                  <th style={{ padding: '6px 10px' }} />
-                </tr>
-              </thead>
-              <tbody>
-                {attention.map((item) => (
-                  <tr key={item.listingId} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <td style={{ padding: '6px 10px', maxWidth: 320 }}>{item.title ?? '(タイトル未取得)'}</td>
-                    <td style={{ padding: '6px 10px', fontFamily: 'var(--font-mono)' }}>{item.sku}</td>
-                    <td style={{ padding: '6px 10px' }}>{item.daysSincePublished ?? '-'}日</td>
-                    <td style={{ padding: '6px 10px' }}>
-                      {item.price !== null ? `${item.currency ?? ''} ${item.price}` : '-'}
-                    </td>
-                    <td style={{ padding: '6px 10px' }}>
-                      <Link href="/listings" className="btn" style={{ fontSize: '.75rem', padding: '2px 8px' }}>
-                        一覧で見る
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="dashboard-attention-list">
+            {attention.map((item) => (
+              <Link href="/listings" key={item.listingId} className="dashboard-attention-row">
+                <span className="dashboard-attention-title">{item.title ?? '(タイトル未取得)'}</span>
+                <span className="dashboard-attention-meta">
+                  <span className="dashboard-attention-days">{item.daysSincePublished ?? '-'}日経過</span>
+                  {item.price !== null && (
+                    <span className="dashboard-attention-price">
+                      {item.currency ?? ''} {item.price}
+                    </span>
+                  )}
+                </span>
+              </Link>
+            ))}
           </div>
         )}
       </section>
@@ -143,18 +121,22 @@ export function DashboardClient({ initial, initialPeriod }: { initial: Dashboard
   );
 }
 
-function KpiCard({ label, value, note }: { label: string; value: string; note?: string }) {
+function KpiCard({
+  label,
+  value,
+  note,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  highlight?: boolean;
+}) {
   return (
-    <div
-      style={{
-        border: '1px solid var(--line-strong)',
-        borderRadius: 8,
-        padding: '12px 14px',
-      }}
-    >
-      <div style={{ fontSize: '.74rem', color: 'var(--muted)' }}>{label}</div>
-      <div style={{ fontSize: '1.35rem', fontWeight: 700 }}>{value}</div>
-      {note && <div style={{ fontSize: '.7rem', color: 'var(--muted)', marginTop: 2 }}>{note}</div>}
+    <div className="card dashboard-kpi-card" data-highlight={highlight ? 'true' : undefined}>
+      <div className="dashboard-kpi-label">{label}</div>
+      <div className="dashboard-kpi-value">{value}</div>
+      {note && <div className="dashboard-kpi-note">{note}</div>}
     </div>
   );
 }
