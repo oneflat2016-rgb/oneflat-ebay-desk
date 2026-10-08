@@ -628,6 +628,23 @@ export function ListingForm({
         {/* 2026-10-08: アプリ風の操作感にするため、保存・ステップ移動・出品を
             画面下部に固定したツールバーへ統一する(globals.cssに元々あったが
             どこからも使われていなかった.mobile-action-barを活用)。 */}
+        {/*
+         * 2026-10-08再修正: 「出品できたのかどうかがわからない」
+         * 「何度も出品ボタンが押せてしまう」という指摘への対応。
+         * ・出品結果(publishStatus)の表示が画面の上の方(カード)にしか無く、
+         *   ボタンが画面下部の固定バーにあるため、押した直後の結果が
+         *   目に入らなかった。ボタンの真上にも同じ内容を表示するようにした。
+         * ・isPublishingは「送信している間」だけtrueになるuseTransitionの値のため、
+         *   送信が完了(成功・失敗どちらでも)すると自動的にfalseへ戻ってしまい、
+         *   成功した後もボタンが押せる状態のままだった。publishStatusが
+         *   「published(出品済み)」になったらボタンを無効化し、ラベルも
+         *   「出品済み」に変えることで、連打による再出品を防ぐ。
+         */}
+        {step === 3 && publishStatus.kind !== 'idle' && (
+          <div className="card" style={{ marginBottom: 12 }}>
+            <PublishStatusLabel status={publishStatus} />
+          </div>
+        )}
         <div className="mobile-action-bar">
           <button type="button" className="btn" onClick={() => goToStep((step - 1) as 1 | 2 | 3)} disabled={step === 1}>
             ← 戻る
@@ -644,9 +661,13 @@ export function ListingForm({
               type="button"
               className="btn primary"
               onClick={handlePublish}
-              disabled={isPublishing || isSaving}
+              disabled={isPublishing || isSaving || publishStatus.kind === 'published'}
             >
-              {isPublishing ? '出品しています…' : 'eBayへ出品する'}
+              {publishStatus.kind === 'published'
+                ? '出品済み'
+                : isPublishing
+                  ? '出品しています…'
+                  : 'eBayへ出品する'}
             </button>
           )}
         </div>
