@@ -49,6 +49,7 @@ export default async function DashboardPage() {
         <Link href="/listings">出品済みListing一覧</Link>
         <Link href="/sales">販売履歴</Link>
         <Link href="/improvements">改善提案</Link>
+        <Link href="/analytics">販売速度分析</Link>
       </nav>
     </main>
   );
