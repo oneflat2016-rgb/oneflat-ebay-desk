@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { getSellThroughByCategory, getSellThroughOverview } from '@/repositories/analytics';
+import { listPublishedListings } from '@/repositories/listings';
+import { getLatestTrafficSnapshotMap } from '@/repositories/traffic';
+import { TrafficSyncButton } from '@/components/analytics/TrafficSyncButton';
 
 /**
  * §32(Phase6実装仕様, 2026-09-29): 販売速度分析の画面(第一段階)。
@@ -12,7 +15,14 @@ import { getSellThroughByCategory, getSellThroughOverview } from '@/repositories
  * 説明文は最小限に留めた。
  */
 export default async function AnalyticsPage() {
-  const [overview, byCategory] = await Promise.all([getSellThroughOverview(), getSellThroughByCategory()]);
+  const [overview, byCategory, listings] = await Promise.all([
+    getSellThroughOverview(),
+    getSellThroughByCategory(),
+    listPublishedListings(),
+  ]);
+
+  const activeListings = listings.filter((l) => l.status === 'ACTIVE');
+  const trafficMap = await getLatestTrafficSnapshotMap(activeListings.map((l) => l.id));
 
   const within7Rate = overview.soldCount > 0 ? Math.round((overview.soldWithin7Days / overview.soldCount) * 100) : null;
   const within30Rate = overview.soldCount > 0 ? Math.round((overview.soldWithin30Days / overview.soldCount) * 100) : null;
@@ -66,6 +76,49 @@ export default async function AnalyticsPage() {
       </section>
 
       <section className="card dashboard-section">
+        <h2>View/Watch(出品中の商品)</h2>
+        <p className="subnote" style={{ marginTop: -4 }}>
+          eBay Trading APIから取得した最新のView数・Watch数です。「View/Watchを同期」を押すと最新の値を取得します。
+        </p>
+        <TrafficSyncButton />
+        {activeListings.length === 0 ? (
+          <p className="subnote">現在、出品中(ACTIVE)の商品がありません。</p>
+        ) : (
+          <div style={{ overflowX: 'auto', marginTop: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.88rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--line-strong)' }}>
+                  <th style={{ padding: '6px 10px' }}>タイトル</th>
+                  <th style={{ padding: '6px 10px' }}>View数</th>
+                  <th style={{ padding: '6px 10px' }}>Watch数</th>
+                  <th style={{ padding: '6px 10px' }}>取得日時</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeListings.map((l) => {
+                  const snap = trafficMap.get(l.id);
+                  return (
+                    <tr key={l.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td style={{ padding: '6px 10px', maxWidth: 320 }}>{l.title ?? '(タイトル未取得)'}</td>
+                      <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
+                        {snap?.viewItemCount ?? '-'}
+                      </td>
+                      <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums' }}>
+                        {snap?.watchCount ?? '-'}
+                      </td>
+                      <td style={{ padding: '6px 10px', fontSize: '.78rem', color: 'var(--muted)' }}>
+                        {snap ? formatDateTime(snap.capturedAt) : '未取得'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card dashboard-section">
         <h2>カテゴリー別の販売速度</h2>
         {byCategory.length === 0 ? (
           <p className="subnote">集計できる販売実績がまだありません。</p>
@@ -103,6 +156,12 @@ export default async function AnalyticsPage() {
       </section>
     </main>
   );
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function KpiCard({

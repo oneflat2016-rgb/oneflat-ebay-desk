@@ -1,6 +1,7 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { getSellThroughByCategory, getSellThroughOverview } from '@/repositories/analytics';
 import { getLastPriceDropMap } from '@/repositories/priceHistory';
+import { getLatestTrafficSnapshotMap } from '@/repositories/traffic';
 
 /**
  * §35(Phase6実装仕様, 2026-09-29): 売れない商品の改善提案(第一段階)。
@@ -11,15 +12,13 @@ import { getLastPriceDropMap } from '@/repositories/priceHistory';
  * 平均/中央値販売日数)に限定している。
  *
  * 仕様書は本来、View/Watch(§34)・値下げ履歴(§33)も判断材料に使うことを
- * 想定している。§33(値下げ履歴, listing_price_history)は2026-10-08に
- * 実装済みのため、「直近30日値下げなし」ルールをここに追加した
- * (evaluateNoRecentPriceDropRule)。§34(View/Watch)はまだ本番環境に
- * 反映されていない(traffic_snapshotsが未適用)ため、引き続き未実装。
- * 判定ロジックは1ルール=1関数の形にして拡張しやすくしてある
- * (下記「拡張ポイント」を参照)。
+ * 想定している。§33(値下げ履歴, listing_price_history)・§34(View/Watch,
+ * traffic_snapshots)は2026-10-08に実装済みのため、「直近30日値下げなし」
+ * (evaluateNoRecentPriceDropRule)・「Watch数が多いのに売れていない」
+ * (evaluateHighWatchNoSaleRule)の2ルールをここに追加した。
+ * 判定ロジックは1ルール=1関数の形にして拡張しやすくしてある。
  *
  * 拡張ポイント(Phase6の他データが適用された後に追加する想定):
- *   - View多い/Watch多いのに販売なし → 価格・送料が障壁の可能性
  *   - Impression少ない → カテゴリー・タイトル・Item Specificsの見直し
  */
 
@@ -120,6 +119,25 @@ function evaluateNoRecentPriceDropRule(
 }
 
 /**
+ * Watch数が一定以上あるのに売れていない商品を検知するルール(§34のView/Watchを使う)。
+ * 興味を持たれている(Watchされている)にも関わらず売れないのは、価格や配送条件が
+ * 障壁になっている可能性を示す。出品直後はWatchが溜まっていないため、
+ * 一定期間(14日)経過後のみ評価する。閾値(3件)はまだ実績が少ないための
+ * 暫定値であり、実データが溜まったら見直す想定。
+ */
+function evaluateHighWatchNoSaleRule(
+  daysSincePublished: number,
+  snapshot: { watchCount: number | null } | undefined,
+): { severity: SuggestionSeverity; reason: string } | null {
+  if (daysSincePublished < 14) return null;
+  if (!snapshot || snapshot.watchCount === null || snapshot.watchCount < 3) return null;
+  return {
+    severity: 'notice',
+    reason: `${snapshot.watchCount}件がウォッチ登録していますが販売に至っていません。価格・配送条件の見直しが有効かもしれません。`,
+  };
+}
+
+/**
  * §35の第一段階: 出品中(ACTIVE)の商品について、経過日数とカテゴリー実績から
  * ルールベースで改善提案を作成する。全社実績が薄いカテゴリーでは全体平均を
  * フォールバックとして使う。
@@ -137,10 +155,11 @@ export async function getImprovementSuggestions(limit = 30): Promise<Improvement
   if (error) throw error;
 
   const listingIds = ((data ?? []) as unknown as ActiveListingRow[]).map((r) => r.id);
-  const [categoryStats, overview, lastPriceDropMap] = await Promise.all([
+  const [categoryStats, overview, lastPriceDropMap, trafficMap] = await Promise.all([
     getSellThroughByCategory(),
     getSellThroughOverview(),
     getLastPriceDropMap(listingIds),
+    getLatestTrafficSnapshotMap(listingIds),
   ]);
   const categoryById = new Map(categoryStats.map((c) => [c.categoryId, c]));
 
@@ -180,6 +199,14 @@ export async function getImprovementSuggestions(limit = 30): Promise<Improvement
       reasons.push(noRecentDrop.reason);
       if (!severity || SEVERITY_RANK[noRecentDrop.severity] < SEVERITY_RANK[severity]) {
         severity = noRecentDrop.severity;
+      }
+    }
+
+    const highWatchNoSale = evaluateHighWatchNoSaleRule(daysSincePublished, trafficMap.get(raw.id));
+    if (highWatchNoSale) {
+      reasons.push(highWatchNoSale.reason);
+      if (!severity || SEVERITY_RANK[highWatchNoSale.severity] < SEVERITY_RANK[severity]) {
+        severity = highWatchNoSale.severity;
       }
     }
 

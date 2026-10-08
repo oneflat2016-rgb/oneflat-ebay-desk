@@ -6,7 +6,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin';
  * (§85相当: 毎回全件取得しない)。
  */
 
-export type SyncJobType = 'orders' | 'finances';
+export type SyncJobType = 'orders' | 'finances' | 'traffic';
 
 export async function getLastSuccessfulCursor(type: SyncJobType): Promise<string | null> {
   const supabase = getSupabaseAdminClient();
