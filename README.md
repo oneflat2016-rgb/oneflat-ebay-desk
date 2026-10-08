@@ -1,19 +1,21 @@
-# ONEFLAT eBay Listing Desk (Phase1-STEP11)
+# ONEFLAT eBay Listing Desk (Phase6完了)
 
-指示書 v1.0 に基づく本格Webアプリ化の実装中。
-現時点は **§110の実装順序1番(コンポーネント分割)・2番(Supabase Auth)・3番(products/drafts のDB接続)・4番(スマホCamera + Storage)・5番(Claude APIのBackend接続=商品解析)・6番(eBay Taxonomy APIによるカテゴリー候補)・7番(eBay Taxonomy APIによる動的Item Specifics)・8番(eBay Metadata APIによる動的Condition)・9番(eBay OAuth = ADMINによるeBayアカウント連携)・10番(Business Policies / Inventory Locationの取得・選択)・11番(Inventory Item / Offer作成・実際のeBayへのPublish)** が完了している。
+指示書 v1.0「ONEFLAT eBay AI出品アプリ 最新実装指示書」に基づく本格Webアプリ化の実装中。
+2026-10-08時点でPhase 1〜6(§110の実装順序1〜12番 = コンポーネント分割からListing管理画面まで、
+およびPhase3〜6のAI・分析系機能)がすべて完了している。詳細は「現時点で動くもの」「次に実装するもの」を参照。
 
-### ⚠️ 今回追加で必要な作業(Supabase側SQL)
+### ⚠️ Supabase側で実行が必要なSQL
 
-1. **Supabase**: `audit_logs` テーブルにINSERTポリシーを追加する必要がある(元々SELECTのみだったため)。SQL Editorで以下を実行してください。
+新しくプロジェクトを立てた場合、または以下をまだ実行していない場合は、Supabase SQL Editorで**この順番**で実行してください(古い順。後のファイルは前のテーブルを前提にしているため)。
 
-```sql
-   create policy "audit_logs: same organization insert"
-     on audit_logs for insert
-     with check (organization_id = current_organization_id());
-```
-
-   他のテーブル(`listing_drafts`の`price`/`currency`/`quantity`列、`listings`テーブル)は既存の`schema.sql`にすでに含まれているため、追加のマイグレーションは不要です。
+1. `supabase/schema.sql` — 最初に実行する基本スキーマ
+2. `supabase/storage.sql` — 商品写真アップロード
+3. `supabase/condition_cache.sql` — §43 動的Condition
+4. `supabase/ebay_accounts_unique.sql` — §9 eBayアカウント連携
+5. `supabase/orders_sync_setup.sql` — §10 販売履歴の自動同期
+6. `supabase/shipping_setup.sql` — §21-22 配送提案
+7. `supabase/price_history_setup.sql` — §33 値下げ履歴(2026-10-08追加・最新)
+8. `supabase/traffic_snapshots_setup.sql` — §34 View/Watch分析(2026-10-08追加・最新)
 
 本番環境: https://oneflat-ebay-desk.vercel.app (Vercelにデプロイ済み。Supabase Auth・eBay/Anthropicのキーも設定済み)
 
@@ -165,7 +167,19 @@ Phase 4はこれで一通り完了(§10・§11)。
   - **既知の制限・今回の簡略化点**: 指示書が挙げる`shipping_recommendations`(候補の永続化用テーブル)・`shipping_history`(発送実績専用の新テーブル)は今回作成せず、既存の`shipping_actuals`テーブル(§10で用意済み)をカテゴリー名経由で参照する形で代用した。梱包後重量/梱包サイズと商品自体の重量/サイズの分離(§21-15)も今回は行わず、商品の重量/サイズをそのまま配送計算に使っている。eBay Sandboxには発送実績データがまだ無いため、候補は現状「登録料金表のみ」に基づく参考値でしか確認できていない(本番で実績が溜まった後の再確認が必要)。料金表(`shipping_rate_rules`)の実際の値もあくまで初期の目安であり、ADMINが実際の契約条件に合わせてSQL Editorから更新する必要がある。
   - **追加のDBセットアップが必要**: `supabase/shipping_setup.sql` をSupabaseのSQL Editorで実行してください(`listing_drafts`への列追加、`shipping_rate_rules`テーブル作成+初期値投入)。
 
-次はPhase 5の残り(§35 売れない商品の改善提案)。
+- **売れない商品の改善提案(指示書§35・Phase6・2026-09-29追加)**: `/improvements` で、出品からの経過日数と同カテゴリーの平均販売日数をもとに、ルールベースで「改善を検討すべき商品」を一覧化する(`src/repositories/improvementSuggestions.ts`)。AIによるスコアリングではなく機械的な判定。ダッシュボードの導線からもリンクしてある。
+
+- **ダッシュボード(指示書§49・Phase6・2026-09-29実装、2026-10-08にUI改善)**: `/dashboard` で、今月の売上・粗利・販売件数などの主要KPI、販売推移グラフ、「要対応(60日以上未販売)」一覧を表示する(`src/app/(app)/dashboard/DashboardClient.tsx`)。Role別出し分け(ADMINのみ原価・粗利を表示)。
+  - **2026-10-08改善**: 「商品を撮影して出品」ボタンが画面最下部に埋もれていて分かりにくい、文字量が多くて読みにくいという指摘を受け、出品CTAを画面最上部の目立つボタンに移動し、他の導線(一覧/履歴/改善提案)は控えめなテキストリンクに変更。KPIカードもデザインシステムの`.card`に統一し、為替レートの注記は`<details>`で初期非表示にした。
+
+- **販売速度分析(指示書§32・Phase6・2026-10-08追加)**: `/analytics` で、出品から売れるまでの日数を全体・カテゴリー別に集計して表示する(`src/repositories/analytics.ts`)。集計ロジック自体は改善提案(§35)の判定に内部利用されていたものをそのまま可視化した。平均/中央値販売日数、7/30/60日以内に売れた件数、出品中のまま30/60/90日以上経過している件数を表示する。
+
+- **値下げ履歴(指示書§33・Phase6・2026-10-08追加)**: `/listings` の価格改定機能で価格を変更するたびに、変更前後の価格を`listing_price_history`テーブルへ記録する(`src/repositories/priceHistory.ts`)。各行の「価格履歴」リンクから`/listings/[id]/price-history`で時系列の変更履歴を確認できる。改善提案(§35)に「直近30日値下げなし」ルールを追加した。
+
+- **View/Watch分析(指示書§34・Phase6・2026-10-08追加)**: `/analytics` の「View/Watch」セクションで、出品中(ACTIVE)の各商品のView数・Watch数を表示する。eBayのSell REST APIにはこの情報を取得するエンドポイントが無いため、別系統のlegacy Trading API(`GetItem`)をOAuth User Access Tokenで呼び出す実装にした(`src/services/ebay/trading.ts`、XML解析に`fast-xml-parser`を使用)。「View/Watchを同期」ボタンを押すと最新値を取得し、`traffic_snapshots`テーブルに履歴として追記する。改善提案(§35)に「Watch数が多いのに売れていない」ルールを追加した。
+  - **既知の制限**: eBay Sandboxのテストデータでは実際のView/Watch数がほとんど付かないため、本番環境で実績が溜まった後の再確認が必要。
+
+Phase6(§49・§35・§32・§33・§34)はこれで一通り完了。
 
 ## まだ実装されていないもの(意図的に未実装)
 
@@ -203,16 +217,16 @@ Phase 4はこれで一通り完了(§10・§11)。
 
 ## 次に実装するもの
 
-(§110の1〜11番=Publishまで完了。Sandboxでの実機Publish成功は確認済みだが、本番(Production)ではまだ未検証。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
+(§110の1〜12番=Publish・Listing管理画面まで完了。Sandboxでの実機Publish成功は確認済みだが、本番(Production)ではまだ未検証。本番で問題なく動くことを確認できたら、`GENRE_FIELDS` / `CATEGORY_PRESETS` およびジャンル固定UI(`GenreSection` / 旧`SpecificsSection` / 旧`ConditionSection`)を削除するクリーンアップを別途行う)
 
-出品済みListing管理画面(§110 step12: 一覧表示・価格改定・在庫同期・End Item・再出品)は完了。
+「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づく実装は、Phase 1〜6まで完了した。
 
-「ONEFLAT eBay AI出品アプリ 最新実装指示書」(全59節)のPhase構成に基づき、以降は以下の順で進める。
+- [x] Phase 3(Claude): 商品画像解析(§6) → AIタイトル生成(§12) → AI説明文の下書き生成(§13) → 出品前AIチェック(§24・2026-09-26実装、Phase 3完了)
+- [x] Phase 4: ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期) → 自社販売実績照合(§11・2026-09-29実装、Phase 4完了)
+- [x] Phase 5: AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21-22)(2026-09-29実装、Phase 5完了)
+- [x] Phase 6: 売れない商品の改善提案(§35)・ダッシュボード(§49、2026-09-29実装)・販売速度分析(§32)・値下げ履歴(§33)・View/Watch分析(§34、2026-10-08実装、Phase 6完了)
 
-- [x] Phase 3(Claude): 商品画像解析(§6) → AIタイトル生成(§12) → AI説明文の下書き生成(§13) → **出品前AIチェック(§24・2026-09-26実装、Phase 3完了)**
-- [x] Phase 4: **ONEFLAT販売履歴データベース(§10・2026-09-28実装、注文・手数料の自動同期)** → **自社販売実績照合(§11・2026-09-29実装、Phase 4完了)**
-- [~] Phase 5: **AI価格提案(§15)・利益シミュレーション(§16-17)・配送提案(§21-22)(2026-09-29実装)** → 次: 売れない商品の改善提案(§35)
-- [ ] Phase 6: View/Watch分析(§34)・販売速度分析(§32)・値下げ履歴(§33)・ダッシュボード(§49)
+指示書のPhase構成はこれで一通り完了。以降は「まだ実装されていないもの(意図的に未実装)」に挙げた項目(自動保存・ユーザー招待・下書きの再編集・画像並び替え等)と、本番(Production)環境への切り替え検証が中心になる見込み。
 
 ## 将来の仕入・注文・利益管理機能統合に向けた方針(2026-09-25追加、実装は別途詳細設計を受けてから)
 
