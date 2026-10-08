@@ -216,6 +216,26 @@ export function ListingForm({
   const SETTLE_WINDOW_MS = 4000;
   const settleUntilRef = useRef(Date.now() + SETTLE_WINDOW_MS);
 
+  /**
+   * 2026-10-08 本当の原因が判明したための再修正(「ひたすら保存が繰り返される」):
+   * scheduleAutoSaveはuseCallback(..., [])でマウント時に1回だけ作られる関数のため、
+   * その中から直接handleSaveを呼ぶと、その「1回だけ作られた時点」のhandleSave
+   * (=最初の描画時のstate/identityを閉じ込めたまま古くなった関数)を永久に
+   * 呼び続けてしまっていた。
+   * 具体的には: タイマーが発火するたびに「古いstate(=初期状態)」でlastSavedSnapshotRef
+   * を上書きしてしまい、次にこの古いstateと「今の本当のstate」を比較すると毎回
+   * 「変わった」と誤認 → また古いhandleSaveが呼ばれる…という無限ループになっていた。
+   * さらにidentityも初期値(productId=null)のまま固定されるため、保存するたびに
+   * 新しい商品が作られ続ける不具合にもなっていた。
+   * 対策: 常に「今レンダーされた最新のhandleSave」をrefに入れておき(handleSaveRef)、
+   * タイマーからはそのrefを経由して呼び出す。これにより呼び出す側は
+   * いつも最新のstate/identityを参照するhandleSaveを実行できる。
+   */
+  const handleSaveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  });
+
   const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     const delay = Math.max(1500, settleUntilRef.current - Date.now());
@@ -225,11 +245,8 @@ export function ListingForm({
         return;
       }
       dirtyRef.current = false;
-      handleSave();
+      handleSaveRef.current();
     }, delay);
-    // handleSaveは毎レンダー再生成される素のfunctionのため依存配列に入れない
-    // (他の自動反映useEffectと同じ方針。関数自体は呼び出し時点のstate/identityを
-    // 正しく参照できるクロージャになっている)。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
