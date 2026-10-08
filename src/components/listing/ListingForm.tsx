@@ -62,8 +62,6 @@ export function ListingForm({
   initialIdentity?: SaveListingIdentity;
   isAdmin?: boolean;
 }) {
-  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 8));
-  console.log('[DEBUG] ListingForm render. instanceId=', instanceIdRef.current);
   const [state, setState] = useState<ListingFormState>(initialState);
   const [identity, setIdentity] = useState<SaveListingIdentity>(
     initialIdentity ?? { productId: null, productVersion: null, draftId: null, draftVersion: null },
@@ -164,11 +162,9 @@ export function ListingForm({
    */
   const hasAutoSavedRef = useRef(false);
   useEffect(() => {
-    console.log('[DEBUG] mount-effect fired. hasAutoSavedRef=', hasAutoSavedRef.current, 'identity.productId=', identity.productId);
     if (hasAutoSavedRef.current) return;
     if (identity.productId) return;
     hasAutoSavedRef.current = true;
-    console.log('[DEBUG] mount-effect calling handleSave() to create product');
     handleSave();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -203,8 +199,26 @@ export function ListingForm({
    */
   const lastSavedSnapshotRef = useRef<string>(JSON.stringify(initialState));
 
+  /**
+   * 2026-10-08再修正: 「写真を添付すると点滅する」の本当の原因が判明したため追加。
+   * ページを開いた直後は、eBay Business Policies取得・配送料金取得・配送方法の
+   * 自動提案・ジャンル自動推測・Brand/Condition自動反映など、複数のセクションが
+   * それぞれ別タイミングで一度だけstateへ自動入力(patch)を行う。これらは
+   * 「内容が実質的に変わっていない場合はスキップする」ガードだけでは防げない
+   * (実際に値が入るので内容は毎回変わる)。その結果、ページを開いてから数秒の間に
+   * 保存が何度も連続して発生し、保存状況の表示が目まぐるしく切り替わる
+   * (=点滅して見える)原因になっていた。
+   * ここではページを開いてから一定時間(SETTLE_WINDOW_MS)の間は、自動反映による
+   * stateの変化を「まとめて」1回の保存にするため、保存予約の実行時刻を
+   * 「その時間が終わるタイミングより前には実行しない」ようにする
+   * (=1.5秒の間隔が空いていても、起動直後の自動入力ラッシュが終わるまでは待つ)。
+   */
+  const SETTLE_WINDOW_MS = 4000;
+  const settleUntilRef = useRef(Date.now() + SETTLE_WINDOW_MS);
+
   const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    const delay = Math.max(1500, settleUntilRef.current - Date.now());
     autoSaveTimerRef.current = setTimeout(() => {
       if (isSavingRef.current) {
         // 保存中に次の変更が来ていた場合は、保存完了後にhandleSave側から再スケジュールする。
@@ -212,7 +226,7 @@ export function ListingForm({
       }
       dirtyRef.current = false;
       handleSave();
-    }, 1500);
+    }, delay);
     // handleSaveは毎レンダー再生成される素のfunctionのため依存配列に入れない
     // (他の自動反映useEffectと同じ方針。関数自体は呼び出し時点のstate/identityを
     // 正しく参照できるクロージャになっている)。
@@ -220,22 +234,13 @@ export function ListingForm({
   }, []);
 
   useEffect(() => {
-    console.log('[DEBUG] debounce-effect fired. skipFirst=', skipFirstAutoSaveEffectRef.current, 'productId=', identity.productId);
     if (skipFirstAutoSaveEffectRef.current) {
       skipFirstAutoSaveEffectRef.current = false;
-      console.log('[DEBUG] debounce-effect: skipping first run');
       return;
     }
-    if (!identity.productId) {
-      console.log('[DEBUG] debounce-effect: no productId yet, skip');
-      return; // 商品の下準備がまだの間は自動保存しない
-    }
+    if (!identity.productId) return; // 商品の下準備がまだの間は自動保存しない
     const snapshot = JSON.stringify(state);
-    if (snapshot === lastSavedSnapshotRef.current) {
-      console.log('[DEBUG] debounce-effect: content unchanged, skip scheduling');
-      return; // 内容が実質的に変わっていなければ何もしない
-    }
-    console.log('[DEBUG] debounce-effect: content CHANGED, scheduling autosave in 1.5s');
+    if (snapshot === lastSavedSnapshotRef.current) return; // 内容が実質的に変わっていなければ何もしない
     dirtyRef.current = true;
     scheduleAutoSave();
     return () => {
@@ -272,7 +277,6 @@ export function ListingForm({
   }
 
   function handleSave() {
-    console.log('[DEBUG] handleSave() called. current identity=', identity);
     isSavingRef.current = true;
     // 今回保存しにいく内容をスナップショットしておく(自動保存の重複スケジュール防止用)。
     lastSavedSnapshotRef.current = JSON.stringify(state);
