@@ -186,6 +186,18 @@ export function ListingForm({
   const dirtyRef = useRef(false);
   const skipFirstAutoSaveEffectRef = useRef(true);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * 2026-10-08修正: 自動保存が無限に繰り返され、画像アップロードが
+   * まともに進まなくなる不具合への対応。
+   * 原因: 各セクションがpatch()を呼ぶたびにstateは「新しいオブジェクト」になるため、
+   * 内容が実質的に変わっていなくても(参照が変わるだけで)自動保存のuseEffectが
+   * 再実行されてしまっていた。保存→再描画→(内容は同じでも)再度保存対象と
+   * 誤認、のループになっていた可能性が高い。
+   * ここでは「直前に実際に保存した内容」をJSON文字列として保持し、今回のstateと
+   * 内容が完全に同じ(実質的な変更が無い)場合は、そもそもタイマーすら
+   * スケジュールしないようにする(参照が変わっただけの空振りを根本から止める)。
+   */
+  const lastSavedSnapshotRef = useRef<string>(JSON.stringify(initialState));
 
   const scheduleAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -209,6 +221,8 @@ export function ListingForm({
       return;
     }
     if (!identity.productId) return; // 商品の下準備がまだの間は自動保存しない
+    const snapshot = JSON.stringify(state);
+    if (snapshot === lastSavedSnapshotRef.current) return; // 内容が実質的に変わっていなければ何もしない
     dirtyRef.current = true;
     scheduleAutoSave();
     return () => {
@@ -246,6 +260,8 @@ export function ListingForm({
 
   function handleSave() {
     isSavingRef.current = true;
+    // 今回保存しにいく内容をスナップショットしておく(自動保存の重複スケジュール防止用)。
+    lastSavedSnapshotRef.current = JSON.stringify(state);
     setSaveStatus({ kind: 'saving' });
     startSaveTransition(async () => {
       try {
