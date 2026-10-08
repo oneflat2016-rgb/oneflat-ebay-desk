@@ -46,7 +46,8 @@ type PublishStatus =
  * トップレベルのフォームコンテナ(Phase1-STEP1〜STEP3)。
  *
  * §110 step3: 「保存」ボタンでlisting_drafts/productsへDB保存する(手動保存)。
- * TODO(§80): 入力停止後1〜2秒のdebounceによる自動保存はまだ未実装。
+ * §80(2026-10-08実装): 入力停止後1.5秒のdebounceによる自動保存も実装済み
+ * (詳細はscheduleAutoSave/handleSave内のコメントを参照)。
  * §81: version列による楽観的排他制御は実装済み(他の人が先に保存していた場合、
  * conflictとして検知しUIに警告を出す)。
  * TODO(§30-31): ホーム画面 + STEP1(写真)/STEP2(出品情報)/STEP3(最終確認)の
@@ -168,6 +169,54 @@ export function ListingForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * §80(2026-10-08実装): 入力停止後1.5秒のdebounceによる自動保存。
+   * これまでは「保存」ボタンを明示的に押さないと変更が消えてしまう問題があった
+   * (§102「まだ実装されていないもの」参照)。ここでは入力(state)が変わるたびに
+   * タイマーをリセットし、1.5秒操作が無ければ自動でhandleSave()を呼ぶ。
+   *
+   * ・まだproductIdが無い(=上のマウント時自動保存がまだ終わっていない)間は
+   *   動かさない(そちらが終われば自然にこの効果が動き出す)。
+   * ・保存が進行中(isSavingRef)の間に次の変更が来た場合は、今回は保存せず
+   *   dirtyRef(未保存の変更あり)だけ立てておき、保存完了後にもう一度だけ
+   *   自動保存をスケジュールする(連打のような二重保存を避けるため)。
+   * ・初回マウント時(まだ何も編集していない)は走らせない。
+   */
+  const isSavingRef = useRef(false);
+  const dirtyRef = useRef(false);
+  const skipFirstAutoSaveEffectRef = useRef(true);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (isSavingRef.current) {
+        // 保存中に次の変更が来ていた場合は、保存完了後にhandleSave側から再スケジュールする。
+        return;
+      }
+      dirtyRef.current = false;
+      handleSave();
+    }, 1500);
+    // handleSaveは毎レンダー再生成される素のfunctionのため依存配列に入れない
+    // (他の自動反映useEffectと同じ方針。関数自体は呼び出し時点のstate/identityを
+    // 正しく参照できるクロージャになっている)。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (skipFirstAutoSaveEffectRef.current) {
+      skipFirstAutoSaveEffectRef.current = false;
+      return;
+    }
+    if (!identity.productId) return; // 商品の下準備がまだの間は自動保存しない
+    dirtyRef.current = true;
+    scheduleAutoSave();
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, identity.productId]);
+
   function handleAspectValueChange(aspectName: string, values: string[]) {
     setState((prev) => ({ ...prev, aspectValues: { ...prev.aspectValues, [aspectName]: values } }));
   }
@@ -196,21 +245,31 @@ export function ListingForm({
   }
 
   function handleSave() {
+    isSavingRef.current = true;
     setSaveStatus({ kind: 'saving' });
     startSaveTransition(async () => {
-      const result = await saveListingDraft(identity, state, ebayAspects);
-      if (!result.ok) {
-        if (result.conflict) {
-          setSaveStatus({ kind: 'conflict', target: result.conflict });
-        } else if (result.error === 'not_authenticated') {
-          setSaveStatus({ kind: 'error', message: 'ログインが必要です。ページを再読み込みしてください。' });
-        } else {
-          setSaveStatus({ kind: 'error', message: '保存に失敗しました。もう一度お試しください。' });
+      try {
+        const result = await saveListingDraft(identity, state, ebayAspects);
+        if (!result.ok) {
+          if (result.conflict) {
+            setSaveStatus({ kind: 'conflict', target: result.conflict });
+          } else if (result.error === 'not_authenticated') {
+            setSaveStatus({ kind: 'error', message: 'ログインが必要です。ページを再読み込みしてください。' });
+          } else {
+            setSaveStatus({ kind: 'error', message: '保存に失敗しました。もう一度お試しください。' });
+          }
+          return;
         }
-        return;
+        if (result.identity) setIdentity(result.identity);
+        setSaveStatus({ kind: 'saved', at: result.savedAt ?? new Date().toISOString() });
+      } finally {
+        isSavingRef.current = false;
+        // §80: 保存中にも編集が続いていた場合、取りこぼさないようもう一度自動保存をスケジュールする。
+        if (dirtyRef.current) {
+          dirtyRef.current = false;
+          scheduleAutoSave();
+        }
       }
-      if (result.identity) setIdentity(result.identity);
-      setSaveStatus({ kind: 'saved', at: result.savedAt ?? new Date().toISOString() });
     });
   }
 
