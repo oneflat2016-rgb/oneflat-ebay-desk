@@ -17,12 +17,13 @@ import { useEffect, useState } from 'react';
 interface ShippingCandidate {
   carrier: string;
   serviceName: string;
-  estimatedCostJpy: number;
-  deliveryMinDays: number;
-  deliveryMaxDays: number;
-  trackingAvailable: boolean;
-  insuranceAvailable: boolean;
-  sourceType: 'rate_table' | 'rate_table_with_history';
+  /** null = ポリシーには登録されているが、アプリの料金表に該当がなく目安を出せない */
+  estimatedCostJpy: number | null;
+  deliveryMinDays: number | null;
+  deliveryMaxDays: number | null;
+  trackingAvailable: boolean | null;
+  insuranceAvailable: boolean | null;
+  sourceType: 'rate_table' | 'rate_table_with_history' | 'policy_only';
   pastUsageCount: number;
   averagePastCostJpy: number | null;
   score: number;
@@ -188,14 +189,32 @@ export function ShippingSuggestionSection({
   // 選択中の配送ポリシーに登録されている発送方法。あれば候補をこれだけに絞る。
   const selectedPolicy = fulfillmentPolicies.find((p) => p.policyId === fulfillmentPolicyId) ?? null;
   const policyServices = selectedPolicy?.shippingServices ?? [];
-  const filteredCandidates =
+  // 配送ポリシーが選ばれている場合は、ポリシーに登録されている発送方法そのものを候補にする。
+  // アプリの料金表に該当があれば送料目安などを付け、無ければ「目安なし」で表示する。
+  const policyBased: ShippingCandidate[] | null =
     candidates && policyServices.length > 0
-      ? candidates.filter((c) => matchesPolicyService(c, policyServices))
-      : candidates;
-  const policyFilterMissed = Boolean(
-    candidates && candidates.length > 0 && policyServices.length > 0 && filteredCandidates?.length === 0,
-  );
-  const visibleCandidates = policyFilterMissed ? candidates : filteredCandidates;
+      ? policyServices
+          .filter((svc, i, arr) => arr.findIndex((o) => o.serviceCode === svc.serviceCode) === i)
+          .map((svc) => {
+            const hit = candidates.find((c) => matchesPolicyService(c, [svc]));
+            if (hit) return { ...hit, serviceName: hit.serviceName, labels: [...hit.labels] };
+            return {
+              carrier: svc.carrierCode ?? '',
+              serviceName: svc.serviceCode,
+              estimatedCostJpy: null,
+              deliveryMinDays: null,
+              deliveryMaxDays: null,
+              trackingAvailable: null,
+              insuranceAvailable: null,
+              sourceType: 'policy_only' as const,
+              pastUsageCount: 0,
+              averagePastCostJpy: null,
+              score: 0,
+              labels: svc.freeShipping ? ['送料無料設定'] : [],
+            };
+          })
+      : null;
+  const visibleCandidates: ShippingCandidate[] | null = policyBased ?? candidates;
 
   const recommendedCandidate = comparison
     ? candidates?.find((c) => c.serviceName === comparison.recommendedServiceName) ?? null
@@ -297,12 +316,6 @@ export function ShippingSuggestionSection({
         )}
       </div>
 
-      {policyFilterMissed && (
-        <p className="subnote" style={{ marginTop: 8, color: 'var(--danger)' }}>
-          ポリシーの発送方法と一致する候補が見つからなかったため、すべての候補を表示しています。
-        </p>
-      )}
-
       {visibleCandidates && visibleCandidates.length > 0 && (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {visibleCandidates.map((c) => {
@@ -339,17 +352,25 @@ export function ShippingSuggestionSection({
                     ))}
                   </span>
                 </div>
-                <p style={{ margin: 0 }}>
-                  送料目安: ¥{c.estimatedCostJpy.toLocaleString('ja-JP')}
-                  <span className="subnote" style={{ marginLeft: 8 }}>
-                    (データ: {c.sourceType === 'rate_table_with_history' ? '登録料金表+自社発送実績' : '登録料金表(参考値)'})
-                  </span>
-                </p>
-                <p className="subnote" style={{ margin: 0 }}>
-                  配送目安: {c.deliveryMinDays}〜{c.deliveryMaxDays}営業日 / 追跡: {c.trackingAvailable ? 'あり' : 'なし'} / 保険:{' '}
-                  {c.insuranceAvailable ? 'あり' : 'なし'}
-                  {c.pastUsageCount > 0 && `/ 過去実績: ${c.pastUsageCount}件`}
-                </p>
+                {c.estimatedCostJpy === null ? (
+                  <p className="subnote" style={{ margin: 0 }}>
+                    配送ポリシーに登録済みの発送方法です(アプリの料金表に該当が無いため、送料目安は出せません)。
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ margin: 0 }}>
+                      送料目安: ¥{c.estimatedCostJpy.toLocaleString('ja-JP')}
+                      <span className="subnote" style={{ marginLeft: 8 }}>
+                        (データ: {c.sourceType === 'rate_table_with_history' ? '登録料金表+自社発送実績' : '登録料金表(参考値)'})
+                      </span>
+                    </p>
+                    <p className="subnote" style={{ margin: 0 }}>
+                      配送目安: {c.deliveryMinDays}〜{c.deliveryMaxDays}営業日 / 追跡: {c.trackingAvailable ? 'あり' : 'なし'} / 保険:{' '}
+                      {c.insuranceAvailable ? 'あり' : 'なし'}
+                      {c.pastUsageCount > 0 && `/ 過去実績: ${c.pastUsageCount}件`}
+                    </p>
+                  </>
+                )}
                 <div>
                   <button
                     type="button"
