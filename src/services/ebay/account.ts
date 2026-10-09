@@ -12,6 +12,7 @@ import type { EbayBusinessPolicy, EbayBusinessPolicyType } from '@/types/ebay';
 interface RawPolicyBase {
   marketplaceId: string;
   name: string;
+  categoryTypes?: { name?: string; default?: boolean }[];
 }
 
 async function fetchPolicyList<TRaw extends RawPolicyBase>(
@@ -95,6 +96,7 @@ function toPolicy(type: EbayBusinessPolicyType, policyId: string, raw: RawPolicy
     policyId,
     name: raw.name,
     marketplaceId: raw.marketplaceId,
+    isDefault: (raw.categoryTypes ?? []).some((c) => c.default === true),
   };
 }
 

@@ -70,6 +70,8 @@ export interface EbayBusinessPolicy {
   policyId: string;
   name: string;
   marketplaceId: string;
+  /** eBay側(セラーハブ)で「既定」に設定されているポリシーか */
+  isDefault?: boolean;
   /** FULFILLMENT(配送)ポリシーのみ: ポリシーに登録されている発送方法 */
   shippingServices?: EbayPolicyShippingService[];
 }
