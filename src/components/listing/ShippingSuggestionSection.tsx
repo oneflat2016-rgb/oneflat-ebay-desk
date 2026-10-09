@@ -39,6 +39,29 @@ interface ShippingComparison {
 interface FulfillmentPolicyOption {
   policyId: string;
   name: string;
+  shippingServices: { optionType: string; carrierCode: string | null; serviceCode: string; freeShipping: boolean }[];
+}
+
+/** 英数字だけにそろえて、表記ゆれ(スペース・記号・大文字小文字)を無視して比べる */
+function norm(v: string): string {
+  return v.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** 配送候補が、ポリシーに登録された発送方法のどれかに当たるか */
+function matchesPolicyService(
+  c: { carrier: string; serviceName: string },
+  services: FulfillmentPolicyOption['shippingServices'],
+): boolean {
+  const name = norm(c.serviceName);
+  const carrier = norm(c.carrier);
+  return services.some((s) => {
+    const code = norm(s.serviceCode);
+    const sc = s.carrierCode ? norm(s.carrierCode) : '';
+    return (
+      (code && (code.includes(name) || name.includes(code))) ||
+      (carrier && (code.includes(carrier) || (sc && (sc.includes(carrier) || carrier.includes(sc)))))
+    );
+  });
 }
 
 const DESTINATION_OPTIONS: { value: string; labelJa: string }[] = [
@@ -97,12 +120,16 @@ export function ShippingSuggestionSection({
     fetch('/api/ebay/policies')
       .then(async (res) => {
         if (!res.ok) return null;
-        return res.json() as Promise<{ fulfillmentPolicies?: { policyId: string; name: string }[] }>;
+        return res.json() as Promise<{ fulfillmentPolicies?: { policyId: string; name: string; shippingServices?: FulfillmentPolicyOption['shippingServices'] }[] }>;
       })
       .then((data) => {
         if (cancelled || !data) return;
         setFulfillmentPolicies(
-          (data.fulfillmentPolicies ?? []).map((p) => ({ policyId: p.policyId, name: p.name })),
+          (data.fulfillmentPolicies ?? []).map((p) => ({
+            policyId: p.policyId,
+            name: p.name,
+            shippingServices: p.shippingServices ?? [],
+          })),
         );
       })
       .catch(() => {
@@ -157,6 +184,18 @@ export function ShippingSuggestionSection({
       setLoading(false);
     }
   }
+
+  // 選択中の配送ポリシーに登録されている発送方法。あれば候補をこれだけに絞る。
+  const selectedPolicy = fulfillmentPolicies.find((p) => p.policyId === fulfillmentPolicyId) ?? null;
+  const policyServices = selectedPolicy?.shippingServices ?? [];
+  const filteredCandidates =
+    candidates && policyServices.length > 0
+      ? candidates.filter((c) => matchesPolicyService(c, policyServices))
+      : candidates;
+  const policyFilterMissed = Boolean(
+    candidates && candidates.length > 0 && policyServices.length > 0 && filteredCandidates?.length === 0,
+  );
+  const visibleCandidates = policyFilterMissed ? candidates : filteredCandidates;
 
   const recommendedCandidate = comparison
     ? candidates?.find((c) => c.serviceName === comparison.recommendedServiceName) ?? null
@@ -245,9 +284,28 @@ export function ShippingSuggestionSection({
         </p>
       )}
 
-      {candidates && candidates.length > 0 && (
+      <div className="subnote" style={{ marginTop: 12 }}>
+        {selectedPolicy ? (
+          <>
+            選択中の配送ポリシー「{selectedPolicy.name}」に登録されている発送方法:{' '}
+            {policyServices.length > 0
+              ? policyServices.map((s) => s.serviceCode).join(' / ')
+              : '(取得できませんでした)'}
+          </>
+        ) : (
+          '上の「Business Policies」で配送ポリシーを選ぶと、そのポリシーに登録されている発送方法だけが候補に出ます。'
+        )}
+      </div>
+
+      {policyFilterMissed && (
+        <p className="subnote" style={{ marginTop: 8, color: 'var(--danger)' }}>
+          ポリシーの発送方法と一致する候補が見つからなかったため、すべての候補を表示しています。
+        </p>
+      )}
+
+      {visibleCandidates && visibleCandidates.length > 0 && (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {candidates.map((c) => {
+          {visibleCandidates.map((c) => {
             const isSelected = selectedShippingMethod === c.serviceName;
             return (
               <div

@@ -57,11 +57,21 @@ export interface EbayConditionPolicy {
  */
 export type EbayBusinessPolicyType = 'FULFILLMENT' | 'PAYMENT' | 'RETURN';
 
+export interface EbayPolicyShippingService {
+  /** 'DOMESTIC' | 'INTERNATIONAL' */
+  optionType: string;
+  carrierCode: string | null;
+  serviceCode: string;
+  freeShipping: boolean;
+}
+
 export interface EbayBusinessPolicy {
   type: EbayBusinessPolicyType;
   policyId: string;
   name: string;
   marketplaceId: string;
+  /** FULFILLMENT(配送)ポリシーのみ: ポリシーに登録されている発送方法 */
+  shippingServices?: EbayPolicyShippingService[];
 }
 
 export interface EbayMarketplaceId {

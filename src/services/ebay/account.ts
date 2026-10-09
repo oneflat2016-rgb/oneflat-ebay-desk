@@ -41,13 +41,26 @@ export async function getFulfillmentPolicies(
   accessToken: string,
   marketplaceId: string,
 ): Promise<EbayBusinessPolicy[]> {
-  const raw = await fetchPolicyList<RawPolicyBase & { fulfillmentPolicyId: string }>(
-    accessToken,
-    marketplaceId,
-    'fulfillment_policy',
-    'fulfillmentPolicies',
-  );
-  return raw.map((p) => toPolicy('FULFILLMENT', p.fulfillmentPolicyId, p));
+  type RawShippingOption = {
+    optionType?: string;
+    shippingServices?: { shippingCarrierCode?: string; shippingServiceCode?: string; freeShipping?: boolean }[];
+  };
+  const raw = await fetchPolicyList<
+    RawPolicyBase & { fulfillmentPolicyId: string; shippingOptions?: RawShippingOption[] }
+  >(accessToken, marketplaceId, 'fulfillment_policy', 'fulfillmentPolicies');
+  return raw.map((p) => ({
+    ...toPolicy('FULFILLMENT', p.fulfillmentPolicyId, p),
+    shippingServices: (p.shippingOptions ?? []).flatMap((o) =>
+      (o.shippingServices ?? [])
+        .filter((s) => s.shippingServiceCode)
+        .map((s) => ({
+          optionType: o.optionType ?? '',
+          carrierCode: s.shippingCarrierCode ?? null,
+          serviceCode: s.shippingServiceCode as string,
+          freeShipping: Boolean(s.freeShipping),
+        })),
+    ),
+  }));
 }
 
 export async function getPaymentPolicies(
