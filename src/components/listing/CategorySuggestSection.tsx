@@ -30,7 +30,7 @@ export function CategorySuggestSection({
   const [query, setQuery] = useState(defaultQuery ?? '');
   const [suggestions, setSuggestions] = useState<EbayCategorySuggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<{ text: string; kind: 'warn' | 'err' | '' }>({
+  const [status, setStatus] = useState<{ text: string; kind: 'warn' | 'err' | 'ok' | '' }>({
     text: '',
     kind: '',
   });
@@ -96,12 +96,21 @@ export function CategorySuggestSection({
       </p>
 
       {categoryId && categoryName && (
-        <p className="subnote" style={{ marginBottom: 8 }}>
-          現在選択中: <strong>{categoryName}</strong>
-          <span className="hint" style={{ marginLeft: 6 }}>
+        <div
+          role="status"
+          style={{
+            marginBottom: 10,
+            padding: '10px 12px',
+            border: '2px solid var(--accent, #2e7d32)',
+            borderRadius: 8,
+            fontWeight: 600,
+          }}
+        >
+          ✓ 選択済み: {categoryName}
+          <span className="hint" style={{ marginLeft: 6, fontWeight: 400 }}>
             (Category ID: {categoryId})
           </span>
-        </p>
+        </div>
       )}
 
       <div className="actions-row" style={{ gap: 8 }}>
@@ -127,7 +136,14 @@ export function CategorySuggestSection({
       </div>
 
       {status.text && (
-        <p className="subnote" style={{ marginTop: 8, color: status.kind === 'err' ? 'var(--danger)' : undefined }}>
+        <p
+          className="subnote"
+          style={{
+            marginTop: 8,
+            color: status.kind === 'err' ? 'var(--danger)' : undefined,
+            fontWeight: status.kind === 'ok' ? 600 : undefined,
+          }}
+        >
           {status.text}
         </p>
       )}
@@ -139,14 +155,22 @@ export function CategorySuggestSection({
               key={s.category.categoryId}
               type="button"
               className="btn ghost"
-              style={{ textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}
-              onClick={() =>
+              style={{
+                textAlign: 'left',
+                display: 'flex',
+                justifyContent: 'space-between',
+                ...(s.category.categoryId === categoryId ? { borderColor: 'var(--accent, #2e7d32)', borderWidth: 2 } : {}),
+              }}
+              onClick={() => {
                 onSelect({
                   categoryTreeId: s.category.categoryTreeId,
                   categoryId: s.category.categoryId,
                   categoryName: s.category.categoryName,
-                })
-              }
+                });
+                // 選択したら候補一覧を閉じ、選択結果が分かるメッセージを出す
+                setSuggestions([]);
+                setStatus({ text: `「${s.category.categoryName}」を選択しました。変える場合は「再検索」を押してください。`, kind: 'ok' });
+              }}
             >
               <span>{s.category.categoryName}</span>
               <span className="hint" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
