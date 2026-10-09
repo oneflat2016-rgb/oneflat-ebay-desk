@@ -714,18 +714,9 @@ function StepTabs({ step, onChange }: { step: 1 | 2 | 3; onChange: (step: 1 | 2 
  * 「他の人が更新しました」と明示する(§102: 無条件の上書き禁止)。
  */
 function SaveStatusLabel({ status }: { status: SaveStatus }) {
-  if (status.kind === 'idle') {
-    return <span className="hint">商品を準備しています…</span>;
-  }
-  if (status.kind === 'saving') {
-    return <span className="hint">出品情報を保存しています…</span>;
-  }
-  if (status.kind === 'saved') {
-    const time = new Date(status.at).toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    return <span className="hint" style={{ color: 'var(--accent)' }}>{time} に保存しました</span>;
+  // 通常時(準備中・保存中・保存済み)は表示しない。競合・エラーのときだけ知らせる。
+  if (status.kind === 'idle' || status.kind === 'saving' || status.kind === 'saved') {
+    return null;
   }
   if (status.kind === 'conflict') {
     return (
