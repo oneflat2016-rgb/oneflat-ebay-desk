@@ -103,7 +103,12 @@ export const EBAY_OAUTH_SCOPES: readonly string[] = [
   'https://api.ebay.com/oauth/api_scope/sell.account',
   // 将来の仕入・注文・利益管理統合向け(2026-09-25方針追加、実装は別途)
   'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-  'https://api.ebay.com/oauth/api_scope/sell.finances',
+  // 入出金・手数料(sell.finances)は、eBayが申請・承認制(限定提供)としている権限。
+  // 本番キーに許可がない状態で要求すると、連携自体が invalid_request で失敗するため、
+  // 許可を受けたあと環境変数 EBAY_ENABLE_FINANCES_SCOPE=true を設定した場合だけ要求する。
+  ...(process.env.EBAY_ENABLE_FINANCES_SCOPE === 'true'
+    ? ['https://api.ebay.com/oauth/api_scope/sell.finances']
+    : []),
 ];
 
 function getEbayAuthBaseUrl(): string {
