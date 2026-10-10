@@ -136,7 +136,8 @@ export function buildAuthorizationUrl(state: string): string {
     scope: EBAY_OAUTH_SCOPES.join(' '),
     state,
   });
-  return `${getEbayAuthBaseUrl()}/oauth2/authorize?${params.toString()}`;
+  // URLSearchParamsは空白を「+」に変換するが、eBayのscopeは「%20」区切りを前提にしているため置き換える
+  return `${getEbayAuthBaseUrl()}/oauth2/authorize?${params.toString().replace(/\+/g, '%20')}`;
 }
 
 export interface EbayUserTokenSet {

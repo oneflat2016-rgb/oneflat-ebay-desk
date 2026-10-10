@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/getCurrentProfile';
-import { EBAY_OAUTH_SCOPES } from '@/services/ebay/auth';
+import { EBAY_OAUTH_SCOPES, buildAuthorizationUrl } from '@/services/ebay/auth';
 
 /**
  * eBay連携がうまくいかないときの切り分け用(ADMIN限定)。
@@ -34,5 +34,14 @@ export async function GET() {
       length: ru.length,
     },
     scopes: EBAY_OAUTH_SCOPES,
+    // 認可URLの形(stateはダミー)。Client ID/RuNameの値そのものは含まれるため、貼る前に確認すること。
+    authorizeUrlShape: (() => {
+      try {
+        const u = new URL(buildAuthorizationUrl('DUMMY'));
+        return { host: u.host, path: u.pathname, params: [...u.searchParams.keys()], scope: u.searchParams.get('scope'), rawQueryHasPlus: u.search.includes('+') };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    })(),
   });
 }
