@@ -6,7 +6,7 @@ import { updateSession } from '@/lib/supabase/middleware';
  * §100の精神(AIが落ちてもアプリは使える)と同様、Supabase未設定時
  * (環境変数が空)はログインを要求せず素通りさせ、開発中に固まらないようにする。
  */
-const PUBLIC_PATHS = ['/login', '/auth/callback'];
+const PUBLIC_PATHS = ['/login', '/auth/callback', '/api/ebay/account-deletion'];
 
 export async function middleware(request: NextRequest) {
   const supabaseConfigured =
